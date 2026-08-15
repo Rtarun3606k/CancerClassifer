@@ -1,45 +1,120 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import React, { useState } from 'react';
 import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+  SafeAreaView,
+  View,
+  Text,
+  Button,
+  Image,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+import { classifyImage } from './src/ml/model';
+
+export default function App() {
+  const [imageUri, setImageUri] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const pickImage = async () => {
+    const response = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+    });
+
+    if (response.didCancel || !response.assets?.length) {
+      return;
+    }
+
+    const uri = response.assets[0].uri;
+
+    setImageUri(uri);
+    setResult(null);
+    setLoading(true);
+
+    try {
+      const prediction = await classifyImage(uri);
+      setResult(prediction);
+    } catch (error) {
+      console.error('Classification error:', error);
+      setResult({
+        error: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Oral Cancer Classifier</Text>
 
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+      <Button title="Choose Image" onPress={pickImage} />
 
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+      {imageUri && (
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.image}
+          resizeMode="contain"
+        />
+      )}
+
+      {loading && <ActivityIndicator size="large" />}
+
+      {result && !result.error && (
+        <View style={styles.result}>
+          <Text style={styles.resultTitle}>Result</Text>
+
+          <Text style={styles.label}>{result.className}</Text>
+
+          <Text>Probability: {(result.probability * 100).toFixed(2)}%</Text>
+        </View>
+      )}
+
+      {result?.error && <Text style={styles.error}>Error: {result.error}</Text>}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  title: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    marginBottom: 30,
+  },
+
+  image: {
+    width: 300,
+    height: 300,
+    marginTop: 30,
+  },
+
+  result: {
+    marginTop: 30,
+    alignItems: 'center',
+  },
+
+  resultTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+
+  label: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
+
+  error: {
+    marginTop: 20,
+    color: 'red',
   },
 });
-
-export default App;

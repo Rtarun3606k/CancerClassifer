@@ -73,3 +73,59 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+# Dependencies
+node_modules/
+
+# React Native / Metro
+.expo/
+.expo-shared/
+.metro-health-check*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Android generated files
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/.cxx/
+android/local.properties
+
+# Android generated/native build artifacts
+*.apk
+*.aab
+*.ap_
+*.aab
+*.dex
+
+# Android signing keys
+*.jks
+*.keystore
+android/app/*.keystore
+
+# Keep the standard debug keystore out of Git
+android/app/debug.keystore
+
+# iOS generated files
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace
+ios/xcuserdata/
+ios/**/xcuserdata/
+ios/Podfile.lock
+
+# Xcode user-specific files
+*.xcuserstate
+*.xcscmblueprint
+
+# Temporary files
+*.tmp
+*.tempseed/serviceAccountKey.json
