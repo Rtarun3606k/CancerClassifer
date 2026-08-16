@@ -16,6 +16,8 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           add(ONNXModelPackage())
           add(ThemePackage())
+          add(SharePdfPackage())
+          add(ReportAssetsPackage())
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },

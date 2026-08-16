@@ -6,6 +6,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import java.io.File
+import java.io.FileOutputStream
 
 class ONNXModelModule(
     reactContext: ReactApplicationContext
@@ -46,4 +47,45 @@ class ONNXModelModule(
             )
         }
     }
+
+
+
+    @ReactMethod
+fun getAudioModelPath(promise: Promise) {
+    try {
+        val modelFile =
+            File(
+                reactApplicationContext.cacheDir,
+                "audio_model.onnx"
+            )
+
+        if (!modelFile.exists()) {
+            reactApplicationContext.resources
+                .openRawResource(
+                    reactApplicationContext.resources
+                        .getIdentifier(
+                            "audio_model",
+                            "raw",
+                            reactApplicationContext.packageName
+                        )
+                )
+                .use { input ->
+                    FileOutputStream(modelFile)
+                        .use { output ->
+                            input.copyTo(output)
+                        }
+                }
+        }
+
+        promise.resolve(
+            modelFile.absolutePath
+        )
+    } catch (e: Exception) {
+        promise.reject(
+            "AUDIO_MODEL_ERROR",
+            "Failed to load audio model",
+            e
+        )
+    }
+}
 }
