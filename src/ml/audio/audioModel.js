@@ -2,7 +2,7 @@ import * as ort from 'onnxruntime-react-native';
 import RNFS from 'react-native-fs';
 import { NativeModules } from 'react-native';
 const { ONNXModel } = NativeModules;
-import { audioToTensorData } from './audioProcessor';
+import { audioToTensorData, resampleAudio } from './audioProcessor';
 
 let session = null;
 
@@ -68,22 +68,17 @@ function base64ToBytes(base64) {
  * followed by 16-bit little-endian PCM.
  */
 function wavBase64ToFloat32(base64) {
-  const bytes = base64ToBytes(base64);
+  const binary = atob(base64);
 
-  if (bytes.length < 44) {
-    throw new Error('Invalid WAV file.');
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
 
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const view = new DataView(bytes.buffer);
 
-  const riff = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-
-  const wave = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
-
-  if (riff !== 'RIFF' || wave !== 'WAVE') {
-    throw new Error('Audio file is not a WAV file.');
-  }
-
+  // WAV header
   const channels = view.getUint16(22, true);
 
   const sampleRate = view.getUint32(24, true);
@@ -97,152 +92,186 @@ function wavBase64ToFloat32(base64) {
   console.log('WAV bits:', bitsPerSample);
 
   if (channels !== 1) {
-    throw new Error(`Expected mono WAV, got ${channels} channels.`);
-  }
-
-  if (sampleRate !== 16000) {
-    throw new Error(`Expected 16000 Hz audio, got ${sampleRate} Hz.`);
+    throw new Error(`Expected mono audio, got ${channels} channels.`);
   }
 
   if (bitsPerSample !== 16) {
-    throw new Error(`Expected 16-bit PCM, got ${bitsPerSample}-bit.`);
+    throw new Error(`Expected 16-bit audio, got ${bitsPerSample}-bit.`);
   }
 
-  /*
-   * Find the "data" chunk instead of assuming
-   * that the PCM data always starts at byte 44.
-   */
-  let offset = 12;
-  let dataOffset = -1;
-  let dataSize = 0;
+  // Find "data" chunk instead of assuming
+  // it always starts at byte 44.
+  let dataOffset = 12;
 
-  while (offset + 8 <= bytes.length) {
+  while (dataOffset + 8 <= bytes.length) {
     const chunkId = String.fromCharCode(
-      bytes[offset],
-      bytes[offset + 1],
-      bytes[offset + 2],
-      bytes[offset + 3],
+      bytes[dataOffset],
+      bytes[dataOffset + 1],
+      bytes[dataOffset + 2],
+      bytes[dataOffset + 3],
     );
 
-    const chunkSize = view.getUint32(offset + 4, true);
+    const chunkSize = view.getUint32(dataOffset + 4, true);
 
     if (chunkId === 'data') {
-      dataOffset = offset + 8;
-
-      dataSize = chunkSize;
-
+      dataOffset += 8;
       break;
     }
 
-    offset += 8 + chunkSize;
-
-    /*
-     * WAV chunks are word aligned.
-     */
-    if (chunkSize % 2 !== 0) {
-      offset++;
-    }
+    dataOffset += 8 + chunkSize;
   }
 
-  if (dataOffset < 0) {
-    throw new Error('WAV data chunk not found.');
-  }
-
-  const sampleCount = Math.floor(dataSize / 2);
+  const sampleCount = Math.floor((bytes.length - dataOffset) / 2);
 
   const samples = new Float32Array(sampleCount);
 
   for (let i = 0; i < sampleCount; i++) {
-    const value = view.getInt16(dataOffset + i * 2, true);
+    const pcm = view.getInt16(dataOffset + i * 2, true);
 
-    samples[i] = value / 32768;
+    samples[i] = pcm / 32768;
   }
 
-  return samples;
+  return {
+    samples,
+    sampleRate,
+  };
 }
 
-export async function classifyAudio(audioPath) {
-  console.log('CLASSIFYING AUDIO:', audioPath);
+export async function classifyAudio(
+  audioPath,
+) {
+  console.log(
+    'CLASSIFYING AUDIO:',
+    audioPath,
+  );
 
-  const model = await loadAudioModel();
+  const model =
+    await loadAudioModel();
 
-  const base64 = await readWavFile(audioPath);
+  const base64 =
+    await readWavFile(audioPath);
 
-  const samples = wavBase64ToFloat32(base64);
+  const {
+    samples,
+    sampleRate,
+  } =
+    wavBase64ToFloat32(base64);
 
-  console.log('PCM samples:', samples.length);
+  console.log(
+    'Original PCM samples:',
+    samples.length,
+  );
 
-  const tensorData = audioToTensorData(samples);
+  console.log(
+    'Original sample rate:',
+    sampleRate,
+  );
 
-  console.log('Audio tensor length:', tensorData.length);
+  const normalizedSamples =
+    resampleAudio(
+      samples,
+      sampleRate,
+      16000,
+    );
 
-  if (tensorData.length !== 128 * 128 * 3) {
-    throw new Error(`Invalid audio tensor size: ${tensorData.length}`);
+  console.log(
+    'Resampled sample rate: 16000',
+  );
+
+  console.log(
+    'Resampled samples:',
+    normalizedSamples.length,
+  );
+
+  const tensorData =
+    audioToTensorData(
+      normalizedSamples,
+    );
+
+  console.log(
+    'Audio tensor length:',
+    tensorData.length,
+  );
+
+  if (
+    tensorData.length !==
+    128 * 128 * 3
+  ) {
+    throw new Error(
+      `Invalid audio tensor size: ${tensorData.length}`,
+    );
   }
 
-  const tensor = new ort.Tensor('float32', tensorData, [1, 128, 128, 3]);
+  const tensor =
+    new ort.Tensor(
+      'float32',
+      tensorData,
+      [1, 128, 128, 3],
+    );
 
-  console.log('Audio tensor shape:', tensor.dims);
+  console.log(
+    'Audio tensor shape:',
+    tensor.dims,
+  );
 
-  const inputName = model.inputNames[0];
+  const inputName =
+    model.inputNames[0];
 
-  const outputName = model.outputNames[0];
+  const outputName =
+    model.outputNames[0];
 
-  const outputs = await model.run({
-    [inputName]: tensor,
-  });
+  const outputs =
+    await model.run({
+      [inputName]: tensor,
+    });
 
-  const output = outputs[outputName];
+  const output =
+    outputs[outputName];
 
   if (!output) {
-    throw new Error(`Output "${outputName}" not found.`);
+    throw new Error(
+      `Output "${outputName}" not found.`,
+    );
   }
 
- const pathologyProbability = Number(output.data[0]);
+  const pathologyProbability =
+    Number(output.data[0]);
 
-if (
-  !Number.isFinite(pathologyProbability) ||
-  pathologyProbability < 0 ||
-  pathologyProbability > 1
-) {
-  throw new Error(
-    `Invalid pathology probability: ${pathologyProbability}`,
-  );
-}
+  const normalProbability =
+    1 - pathologyProbability;
 
-const normalProbability =
-  1 - pathologyProbability;
+  const isPathology =
+    pathologyProbability >= 0.5;
 
-const isPathology =
-  pathologyProbability >= 0.5;
+  const confidence =
+    Math.max(
+      pathologyProbability,
+      normalProbability,
+    );
 
-const confidence =
-  Math.max(
+  const result = {
+    prediction:
+      isPathology
+        ? 'Vocal Pathology'
+        : 'Normal',
+
     pathologyProbability,
+
     normalProbability,
+
+    confidence,
+
+    confidencePercentage:
+      confidence * 100,
+
+    rawOutput:
+      Array.from(output.data),
+  };
+
+  console.log(
+    'AUDIO MODEL RESULT:',
+    result,
   );
 
-const result = {
-  prediction: isPathology
-    ? 'Vocal Pathology'
-    : 'Normal',
-
-  pathologyProbability,
-
-  normalProbability,
-
-  confidence,
-
-  confidencePercentage:
-    confidence * 100,
-
-  rawOutput:
-    Array.from(output.data),
-};
-
-console.log(
-  'AUDIO MODEL RESULT:',
-  result,
-);
-
-return result;}
+  return result;
+}

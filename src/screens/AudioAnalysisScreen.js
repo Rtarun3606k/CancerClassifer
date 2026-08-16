@@ -11,149 +11,226 @@ import {
   Platform,
 } from 'react-native';
 
-import {
-  startRecording,
-  stopRecording,
-} from '../ml/audio/audioRecorder';
+import { startRecording, stopRecording } from '../ml/audio/audioRecorder';
 
-import {
-  classifyAudio,
-} from '../ml/audio/audioModel';
+import { classifyAudio } from '../ml/audio/audioModel';
+
+import { pick, types } from '@react-native-documents/picker';
 
 import AppHeader from '../components/AppHeader';
 import AppFooter from '../components/AppFooter';
 import ProbabilityBar from '../components/ProbabilityBar';
 
-export default function AudioAnalysisScreen({
-  colors,
-  onImage,
-}) {
-  const [isRecording, setIsRecording] =
-    useState(false);
+import RNFS from 'react-native-fs';
 
-  const [analyzing, setAnalyzing] =
-    useState(false);
+export default function AudioAnalysisScreen({ colors, onImage }) {
+  const [isRecording, setIsRecording] = useState(false);
 
-  const [audioResult, setAudioResult] =
-    useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
-  const [audioError, setAudioError] =
-    useState(null);
+  const [audioResult, setAudioResult] = useState(null);
 
-  const requestMicrophonePermission =
-    async () => {
-      if (Platform.OS !== 'android') {
-        return true;
+  const [audioError, setAudioError] = useState(null);
+
+  const requestMicrophonePermission = async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: 'Microphone Permission',
+
+        message: 'OralScan needs microphone access to analyze your voice.',
+
+        buttonPositive: 'Allow',
+
+        buttonNegative: 'Deny',
+      },
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  async function copyContentUriToLocalFile(uri) {
+    if (!uri) {
+      throw new Error('No audio URI provided.');
+    }
+
+    if (!uri.startsWith('content://')) {
+      return uri;
+    }
+
+    const destination = `${RNFS.CachesDirectoryPath}/uploaded_audio.wav`;
+
+    await RNFS.copyFile(uri, destination);
+
+    const exists = await RNFS.exists(destination);
+
+    if (!exists) {
+      throw new Error('Failed to copy selected audio file.');
+    }
+
+    return destination;
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      setAudioError(null);
+      setAudioResult(null);
+
+      const allowed = await requestMicrophonePermission();
+
+      if (!allowed) {
+        setAudioError('Microphone permission was denied.');
+        return;
       }
 
-      const granted =
-        await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS
-            .RECORD_AUDIO,
-          {
-            title:
-              'Microphone Permission',
+      startRecording();
 
-            message:
-              'OralScan needs microphone access to analyze your voice.',
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Recording start error:', error);
 
-            buttonPositive:
-              'Allow',
+      setAudioError(error.message || 'Unable to start recording.');
+    }
+  };
 
-            buttonNegative:
-              'Deny',
-          },
-        );
+  const handleStopRecording = async () => {
+    try {
+      setIsRecording(false);
+      setAnalyzing(true);
+      setAudioError(null);
 
-      return (
-        granted ===
-        PermissionsAndroid.RESULTS
-          .GRANTED
+      const path = await stopRecording();
+
+      console.log('AUDIO FILE:', path);
+
+      const result = await classifyAudio(path);
+
+      console.log('FINAL AUDIO RESULT:', result);
+
+      setAudioResult(result);
+    } catch (error) {
+      console.error('AUDIO ANALYSIS ERROR:', error);
+
+      setAudioError(error.message || 'Unable to analyze audio.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const copyAudioToLocalCache = async uri => {
+    if (!uri) {
+      throw new Error('No audio URI provided.');
+    }
+
+    // Already a normal filesystem path
+    if (!uri.startsWith('content://')) {
+      return uri;
+    }
+
+    const destination = `${RNFS.CachesDirectoryPath}/uploaded_audio.wav`;
+
+    console.log('COPYING CONTENT URI:', uri);
+
+    console.log('DESTINATION:', destination);
+
+    await RNFS.copyFile(uri, destination);
+
+    const exists = await RNFS.exists(destination);
+
+    if (!exists) {
+      throw new Error('Failed to copy selected audio file.');
+    }
+
+    return destination;
+  };
+
+  const handleUploadAudio = async () => {
+  try {
+    setAudioError(null);
+    setAudioResult(null);
+    setAnalyzing(true);
+
+    const [file] = await pick({
+      type: [types.audio],
+      allowMultiSelection: false,
+    });
+
+    console.log(
+      'SELECTED AUDIO:',
+      file,
+    );
+
+    if (!file) {
+      throw new Error(
+        'No audio file selected.',
       );
-    };
+    }
 
-  const handleStartRecording =
-    async () => {
-      try {
-        setAudioError(null);
-        setAudioResult(null);
+    const selectedUri =
+      file.fileCopyUri || file.uri;
 
-        const allowed =
-          await requestMicrophonePermission();
+    if (!selectedUri) {
+      throw new Error(
+        'Unable to access the selected audio file.',
+      );
+    }
 
-        if (!allowed) {
-          setAudioError(
-            'Microphone permission was denied.',
-          );
-          return;
-        }
+    console.log(
+      'SELECTED AUDIO URI:',
+      selectedUri,
+    );
 
-        startRecording();
+    const audioPath =
+      await copyAudioToLocalCache(
+        selectedUri,
+      );
 
-        setIsRecording(true);
-      } catch (error) {
-        console.error(
-          'Recording start error:',
-          error,
-        );
+    console.log(
+      'LOCAL AUDIO PATH:',
+      audioPath,
+    );
 
-        setAudioError(
-          error.message ||
-            'Unable to start recording.',
-        );
-      }
-    };
+    const result =
+      await classifyAudio(audioPath);
 
-  const handleStopRecording =
-    async () => {
-      try {
-        setIsRecording(false);
-        setAnalyzing(true);
-        setAudioError(null);
+    console.log(
+      'UPLOADED AUDIO RESULT:',
+      result,
+    );
 
-        const path =
-          await stopRecording();
+    setAudioResult(result);
 
-        console.log(
-          'AUDIO FILE:',
-          path,
-        );
+  } catch (error) {
+    if (
+      error?.code ===
+      'OPERATION_CANCELED'
+    ) {
+      return;
+    }
 
-        const result =
-          await classifyAudio(path);
+    console.error(
+      'Audio upload error:',
+      error,
+    );
 
-        console.log(
-          'FINAL AUDIO RESULT:',
-          result,
-        );
+    setAudioError(
+      error.message ||
+        'Unable to analyze the selected audio.',
+    );
 
-        setAudioResult(result);
-      } catch (error) {
-        console.error(
-          'AUDIO ANALYSIS ERROR:',
-          error,
-        );
+  } finally {
+    setAnalyzing(false);
+  }
+};
+  const pathology = audioResult?.pathologyProbability ?? 0;
 
-        setAudioError(
-          error.message ||
-            'Unable to analyze audio.',
-        );
-      } finally {
-        setAnalyzing(false);
-      }
-    };
+  const normal = audioResult?.normalProbability ?? 0;
 
-  const pathology =
-    audioResult
-      ?.pathologyProbability ?? 0;
-
-  const normal =
-    audioResult
-      ?.normalProbability ?? 0;
-
-  const isPathology =
-    audioResult?.prediction ===
-    'Vocal Pathology';
+  const isPathology = audioResult?.prediction === 'Vocal Pathology';
 
   return (
     <ScrollView
@@ -164,23 +241,15 @@ export default function AudioAnalysisScreen({
         colors={colors}
         title="OralScan"
         subtitle="AI-powered voice analysis"
-        status={
-          isRecording
-            ? 'RECORDING'
-            : analyzing
-              ? 'ANALYZING'
-              : 'READY'
-        }
+        status={isRecording ? 'RECORDING' : analyzing ? 'ANALYZING' : 'READY'}
       />
 
       <View
         style={[
           styles.recordCard,
           {
-            backgroundColor:
-              colors.surface,
-            borderColor:
-              colors.outline,
+            backgroundColor: colors.surface,
+            borderColor: colors.outline,
           },
         ]}
       >
@@ -188,10 +257,9 @@ export default function AudioAnalysisScreen({
           style={[
             styles.microphone,
             {
-              backgroundColor:
-                isRecording
-                  ? colors.errorContainer
-                  : colors.primaryContainer,
+              backgroundColor: isRecording
+                ? colors.errorContainer
+                : colors.primaryContainer,
             },
           ]}
         >
@@ -199,10 +267,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.microphoneText,
               {
-                color:
-                  isRecording
-                    ? colors.error
-                    : colors.primary,
+                color: isRecording ? colors.error : colors.primary,
               },
             ]}
           >
@@ -214,85 +279,81 @@ export default function AudioAnalysisScreen({
           style={[
             styles.recordTitle,
             {
-              color:
-                colors.onSurface,
+              color: colors.onSurface,
             },
           ]}
         >
-          {isRecording
-            ? 'Recording your voice'
-            : 'Voice analysis'}
+          {isRecording ? 'Recording your voice' : 'Voice analysis'}
         </Text>
 
         <Text
           style={[
             styles.recordDescription,
             {
-              color:
-                colors.onSurfaceVariant,
+              color: colors.onSurfaceVariant,
             },
           ]}
         >
-          Record a short voice sample for
-          on-device AI analysis.
+          Record a short voice sample for on-device AI analysis.
         </Text>
 
         <Pressable
-          onPress={
-            isRecording
-              ? handleStopRecording
-              : handleStartRecording
-          }
+          onPress={isRecording ? handleStopRecording : handleStartRecording}
           disabled={analyzing}
           style={[
             styles.recordButton,
             {
-              backgroundColor:
-                isRecording
-                  ? colors.error
-                  : colors.primary,
-              opacity:
-                analyzing ? 0.6 : 1,
+              backgroundColor: isRecording ? colors.error : colors.primary,
+              opacity: analyzing ? 0.6 : 1,
             },
           ]}
         >
-          <Text
-            style={
-              styles.recordButtonText
-            }
-          >
-            {isRecording
-              ? 'Stop Recording'
-              : 'Record Voice'}
+          <Text style={styles.recordButtonText}>
+            {isRecording ? 'Stop Recording' : 'Record Voice'}
           </Text>
         </Pressable>
       </View>
+
+      <Pressable
+        onPress={handleUploadAudio}
+        disabled={analyzing || isRecording}
+        style={[
+          styles.secondaryButton,
+          {
+            borderColor: colors.outline,
+            opacity: analyzing || isRecording ? 0.5 : 1,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.secondaryButtonText,
+            {
+              color: colors.primary,
+            },
+          ]}
+        >
+          Upload Audio
+        </Text>
+      </Pressable>
 
       {analyzing && (
         <View
           style={[
             styles.analysisCard,
             {
-              backgroundColor:
-                colors.primaryContainer,
+              backgroundColor: colors.primaryContainer,
             },
           ]}
         >
-          <ActivityIndicator
-            color={colors.primary}
-          />
+          <ActivityIndicator color={colors.primary} />
 
-          <View
-            style={
-              styles.analysisText
-            }
-          >
+          <View style={styles.analysisText}>
             <Text
               style={[
                 styles.analysisTitle,
                 {
-                  color:
-                    colors.onPrimaryContainer,
+                  color: colors.onPrimaryContainer,
                 },
               ]}
             >
@@ -303,13 +364,11 @@ export default function AudioAnalysisScreen({
               style={[
                 styles.analysisSubtitle,
                 {
-                  color:
-                    colors.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 },
               ]}
             >
-              Running the vocal pathology
-              model locally on your device.
+              Running the vocal pathology model locally on your device.
             </Text>
           </View>
         </View>
@@ -320,10 +379,8 @@ export default function AudioAnalysisScreen({
           style={[
             styles.resultCard,
             {
-              backgroundColor:
-                colors.surface,
-              borderColor:
-                colors.outline,
+              backgroundColor: colors.surface,
+              borderColor: colors.outline,
             },
           ]}
         >
@@ -331,8 +388,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.eyebrow,
               {
-                color:
-                  colors.onSurfaceVariant,
+                color: colors.onSurfaceVariant,
               },
             ]}
           >
@@ -343,8 +399,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.heading,
               {
-                color:
-                  colors.onSurface,
+                color: colors.onSurface,
               },
             ]}
           >
@@ -355,40 +410,30 @@ export default function AudioAnalysisScreen({
             style={[
               styles.prediction,
               {
-                color:
-                  isPathology
-                    ? colors.error
-                    : colors.primary,
+                color: isPathology ? colors.error : colors.primary,
               },
             ]}
           >
             {audioResult.prediction}
           </Text>
 
-          <View
-            style={styles.confidence}
-          >
+          <View style={styles.confidence}>
             <Text
               style={[
                 styles.confidenceValue,
                 {
-                  color:
-                    colors.onSurface,
+                  color: colors.onSurface,
                 },
               ]}
             >
-              {audioResult
-                .confidencePercentage
-                .toFixed(1)}
-              %
+              {audioResult.confidencePercentage.toFixed(1)}%
             </Text>
 
             <Text
               style={[
                 styles.confidenceLabel,
                 {
-                  color:
-                    colors.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 },
               ]}
             >
@@ -396,15 +441,9 @@ export default function AudioAnalysisScreen({
             </Text>
           </View>
 
-          <View
-            style={styles.divider}
-          />
+          <View style={styles.divider} />
 
-          <ProbabilityBar
-            label="NORMAL"
-            value={normal}
-            colors={colors}
-          />
+          <ProbabilityBar label="NORMAL" value={normal} colors={colors} />
 
           <ProbabilityBar
             label="VOCAL PATHOLOGY"
@@ -419,8 +458,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.secondaryButton,
               {
-                borderColor:
-                  colors.outline,
+                borderColor: colors.outline,
               },
             ]}
           >
@@ -428,8 +466,7 @@ export default function AudioAnalysisScreen({
               style={[
                 styles.secondaryButtonText,
                 {
-                  color:
-                    colors.primary,
+                  color: colors.primary,
                 },
               ]}
             >
@@ -444,8 +481,7 @@ export default function AudioAnalysisScreen({
           style={[
             styles.errorCard,
             {
-              backgroundColor:
-                colors.errorContainer,
+              backgroundColor: colors.errorContainer,
             },
           ]}
         >
@@ -453,8 +489,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.errorTitle,
               {
-                color:
-                  colors.error,
+                color: colors.error,
               },
             ]}
           >
@@ -465,8 +500,7 @@ export default function AudioAnalysisScreen({
             style={[
               styles.errorText,
               {
-                color:
-                  colors.onErrorContainer,
+                color: colors.onErrorContainer,
               },
             ]}
           >
@@ -480,8 +514,7 @@ export default function AudioAnalysisScreen({
         style={[
           styles.secondaryButton,
           {
-            borderColor:
-              colors.outline,
+            borderColor: colors.outline,
           },
         ]}
       >
@@ -489,8 +522,7 @@ export default function AudioAnalysisScreen({
           style={[
             styles.secondaryButtonText,
             {
-              color:
-                colors.primary,
+              color: colors.primary,
             },
           ]}
         >
