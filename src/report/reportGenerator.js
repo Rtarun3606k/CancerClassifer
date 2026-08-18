@@ -1,6 +1,7 @@
 import { generatePDF } from 'react-native-html-to-pdf';
 import RNFS from 'react-native-fs';
 import { NativeModules } from 'react-native';
+
 const { SharePdf, ReportAssets } = NativeModules;
 
 function formatDate(date) {
@@ -19,9 +20,38 @@ function formatTime(date) {
   });
 }
 
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) {
+    return null;
+  }
+
+  const dob = new Date(dateOfBirth);
+  const today = new Date();
+
+  let age =
+    today.getFullYear() -
+    dob.getFullYear();
+
+  const monthDifference =
+    today.getMonth() -
+    dob.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 &&
+      today.getDate() < dob.getDate())
+  ) {
+    age--;
+  }
+
+  return age;
+}
+
 async function imageToBase64(uri) {
   if (!uri) {
-    throw new Error('Image URI is missing.');
+    throw new Error(
+      'Image URI is missing.',
+    );
   }
 
   let path = uri;
@@ -39,50 +69,380 @@ async function imageToBase64(uri) {
   const exists = await RNFS.exists(path);
 
   if (!exists) {
-    throw new Error(`Image file does not exist: ${path}`);
+    throw new Error(
+      `Image file does not exist: ${path}`,
+    );
   }
 
-  const base64 = await RNFS.readFile(path, 'base64');
+  const base64 =
+    await RNFS.readFile(
+      path,
+      'base64',
+    );
 
   return `data:image/jpeg;base64,${base64}`;
 }
 
-export async function generateReport({ imageUri, result }) {
-  if (!imageUri) {
-    throw new Error('No image available for the report.');
+async function logoToBase64() {
+  if (!ReportAssets) {
+    throw new Error(
+      'ReportAssets native module is not available.',
+    );
   }
 
-  if (!result || result.error) {
-    throw new Error('No valid analysis result available.');
+  return await ReportAssets.getLogo();
+}
+
+function probabilityBar(
+  label,
+  value,
+) {
+  const percentage =
+    ((value ?? 0) * 100).toFixed(1);
+
+  return `
+    <div class="bar-row">
+
+      <div class="bar-header">
+        <span>${label}</span>
+
+        <strong>
+          ${percentage}%
+        </strong>
+      </div>
+
+      <div class="bar-background">
+        <div
+          class="bar"
+          style="width:${percentage}%"
+        ></div>
+      </div>
+
+    </div>
+  `;
+}
+
+function createImageSection(image) {
+  if (!image?.result) {
+    return '';
+  }
+
+  const result = image.result;
+
+  const cancerProbability =
+    result.probabilities?.CANCER ?? 0;
+
+  const nonCancerProbability =
+    result.probabilities?.[
+      'NON CANCER'
+    ] ?? 0;
+
+  const confidence =
+    (
+      (result.probability ?? 0) *
+      100
+    ).toFixed(1);
+
+  const isCancer =
+    result.classIndex === 0;
+
+  const predictionColor =
+    isCancer
+      ? '#B3261E'
+      : '#146C2E';
+
+  return `
+    <div class="section">
+
+      <div class="section-title">
+        IMAGE ANALYSIS
+      </div>
+
+      ${
+        image.base64
+          ? `
+            <div class="image-container">
+              <img
+                class="analysis-image"
+                src="${image.base64}"
+              />
+            </div>
+          `
+          : ''
+      }
+
+      <div class="result">
+
+        <div class="prediction-label">
+          Prediction
+        </div>
+
+        <div
+          class="prediction"
+          style="color:${predictionColor}"
+        >
+          ${result.className ?? 'Unknown'}
+        </div>
+
+        <div class="confidence">
+          Confidence:
+          <strong>
+            ${confidence}%
+          </strong>
+        </div>
+
+        ${probabilityBar(
+          'CANCER',
+          cancerProbability,
+        )}
+
+        ${probabilityBar(
+          'NON CANCER',
+          nonCancerProbability,
+        )}
+
+      </div>
+
+    </div>
+
+    <div class="section">
+
+      <div class="section-title">
+        IMAGE MODEL INFORMATION
+      </div>
+
+      <table class="info-table">
+
+        <tr>
+          <td class="info-label">
+            Model
+          </td>
+
+          <td>
+            MobileNetV3
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Platform
+          </td>
+
+          <td>
+            Android
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Inference
+          </td>
+
+          <td>
+            On-device
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Input
+          </td>
+
+          <td>
+            Oral image
+          </td>
+        </tr>
+
+      </table>
+
+    </div>
+  `;
+}
+
+function createAudioSection(audio) {
+  if (!audio?.result) {
+    return '';
+  }
+
+  const result = audio.result;
+
+  const pathologyProbability =
+    result.pathologyProbability ?? 0;
+
+  const normalProbability =
+    result.normalProbability ?? 0;
+
+  const confidence =
+    (
+      (result.confidence ?? 0) *
+      100
+    ).toFixed(1);
+
+  const prediction =
+    result.prediction ??
+    'Unknown';
+
+  const isPathology =
+    prediction ===
+    'Vocal Pathology';
+
+  const predictionColor =
+    isPathology
+      ? '#B3261E'
+      : '#146C2E';
+
+  return `
+    <div class="section">
+
+      <div class="section-title">
+        VOICE ANALYSIS
+      </div>
+
+      <div class="result">
+
+        <div class="prediction-label">
+          Prediction
+        </div>
+
+        <div
+          class="prediction"
+          style="color:${predictionColor}"
+        >
+          ${prediction}
+        </div>
+
+        <div class="confidence">
+          Confidence:
+          <strong>
+            ${confidence}%
+          </strong>
+        </div>
+
+        ${probabilityBar(
+          'NORMAL',
+          normalProbability,
+        )}
+
+        ${probabilityBar(
+          'VOCAL PATHOLOGY',
+          pathologyProbability,
+        )}
+
+      </div>
+
+    </div>
+
+    <div class="section">
+
+      <div class="section-title">
+        VOICE MODEL INFORMATION
+      </div>
+
+      <table class="info-table">
+
+        <tr>
+          <td class="info-label">
+            Model
+          </td>
+
+          <td>
+            Stage 1 Vocal Classifier
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Platform
+          </td>
+
+          <td>
+            Android
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Inference
+          </td>
+
+          <td>
+            On-device
+          </td>
+        </tr>
+
+        <tr>
+          <td class="info-label">
+            Input
+          </td>
+
+          <td>
+            Voice recording
+          </td>
+        </tr>
+
+      </table>
+
+    </div>
+  `;
+}
+
+export async function generateReport({
+  patient,
+  image,
+  audio,
+  selectedAnalyses,
+}) {
+  if (!patient) {
+    throw new Error(
+      'Patient information is missing.',
+    );
+  }
+
+  const hasImage =
+    !!selectedAnalyses?.image &&
+    !!image?.result;
+
+  const hasAudio =
+    !!selectedAnalyses?.audio &&
+    !!audio?.result;
+
+  if (!hasImage && !hasAudio) {
+    throw new Error(
+      'No valid analysis results available.',
+    );
   }
 
   const now = new Date();
 
-  const cancerProbability = result.probabilities?.CANCER ?? 0;
+  const age = calculateAge(
+    patient.dateOfBirth,
+  );
 
-  const nonCancerProbability = result.probabilities?.['NON CANCER'] ?? 0;
+  // Prepare image only when required.
+  let imageBase64 = null;
 
-  const confidence = ((result.probability ?? 0) * 100).toFixed(1);
-
-  const cancerPercentage = (cancerProbability * 100).toFixed(1);
-
-  const nonCancerPercentage = (nonCancerProbability * 100).toFixed(1);
-
-  const isCancer = result.classIndex === 0;
-
-  const predictionColor = isCancer ? '#B3261E' : '#146C2E';
-
-  // Convert selected cancer/oral image to base64.
-  const imageBase64 = await imageToBase64(imageUri);
-  async function logoToBase64() {
-    if (!ReportAssets) {
-      throw new Error('ReportAssets native module is not available.');
-    }
-
-    return await ReportAssets.getLogo();
+  if (hasImage && image?.uri) {
+    imageBase64 =
+      await imageToBase64(
+        image.uri,
+      );
   }
 
-  const logoBase64 = await logoToBase64();
+  const logoBase64 =
+    await logoToBase64();
+
+  const imageSection =
+    hasImage
+      ? createImageSection({
+          ...image,
+          base64: imageBase64,
+        })
+      : '';
+
+  const audioSection =
+    hasAudio
+      ? createAudioSection(audio)
+      : '';
 
   const html = `
 <!DOCTYPE html>
@@ -125,18 +485,6 @@ body {
   padding-bottom: 20px;
 }
 
-.logo-placeholder {
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
-  background: #eeeeee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 15px;
-}
-
-
 .logo-container {
   width: 58px;
   height: 58px;
@@ -150,11 +498,6 @@ body {
   width: 58px;
   height: 58px;
   object-fit: contain;
-}
-
-.logo-letter {
-  font-size: 28px;
-  font-weight: bold;
 }
 
 .brand {
@@ -182,10 +525,38 @@ body {
   font-size: 12px;
 }
 
+/* PATIENT */
+
+.patient-details {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 12px;
+}
+
+.patient-row {
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.patient-row:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  color: #6b7280;
+  display: inline-block;
+  width: 120px;
+}
+
+.value {
+  font-weight: 600;
+}
+
 /* META */
 
 .meta {
-  margin-top: 20px;
+  margin-top: 14px;
   background: #f5f5f5;
   border-radius: 12px;
   padding: 15px;
@@ -196,11 +567,15 @@ body {
   font-size: 12px;
 }
 
+.meta-row:last-child {
+  margin-bottom: 0;
+}
+
 .meta-label {
   color: #6b7280;
 }
 
-/* IMAGE */
+/* SECTION */
 
 .section {
   margin-top: 28px;
@@ -213,6 +588,8 @@ body {
   letter-spacing: 1px;
   margin-bottom: 14px;
 }
+
+/* IMAGE */
 
 .image-container {
   width: 100%;
@@ -233,7 +610,7 @@ body {
 /* RESULT */
 
 .result {
-  margin-top: 20px;
+  margin-top: 14px;
   padding: 20px;
   background: #f7f7f7;
   border-radius: 14px;
@@ -248,7 +625,6 @@ body {
   margin-top: 5px;
   font-size: 28px;
   font-weight: bold;
-  color: ${predictionColor};
 }
 
 .confidence {
@@ -344,11 +720,13 @@ body {
 
   <div class="header">
 
-    <div class="logo-placeholder">
+    <div class="logo-container">
+
       <img
-    class="logo"
-    src="${logoBase64}"
-  />
+        class="logo"
+        src="${logoBase64}"
+      />
+
     </div>
 
     <div>
@@ -358,7 +736,7 @@ body {
       </div>
 
       <div class="brand-subtitle">
-        AI-powered oral image analysis
+        AI-assisted oral screening
       </div>
 
     </div>
@@ -369,11 +747,84 @@ body {
   <!-- TITLE -->
 
   <div class="title">
-    Oral Image Analysis Report
+    Diagnosis Report
   </div>
 
   <div class="subtitle">
-    Generated automatically from an on-device AI model
+    Generated automatically from on-device AI models
+  </div>
+
+
+  <!-- PATIENT -->
+
+  <div class="patient-details">
+
+    <div class="patient-row">
+      <span class="label">
+        Patient Name
+      </span>
+
+      <span class="value">
+        ${patient.name}
+      </span>
+    </div>
+
+    <div class="patient-row">
+      <span class="label">
+        Date of Birth
+      </span>
+
+      <span class="value">
+        ${patient.dateOfBirth}
+      </span>
+    </div>
+
+    <div class="patient-row">
+      <span class="label">
+        Age
+      </span>
+
+      <span class="value">
+        ${
+          age !== null
+            ? `${age} years`
+            : 'Not provided'
+        }
+      </span>
+    </div>
+
+    <div class="patient-row">
+      <span class="label">
+        Gender
+      </span>
+
+      <span class="value">
+        ${
+          patient.gender ||
+          'Not provided'
+        }
+      </span>
+    </div>
+
+    <div class="patient-row">
+      <span class="label">
+        Location
+      </span>
+
+      <span class="value">
+        ${
+          [
+            patient.city,
+            patient.state,
+            patient.country,
+          ]
+            .filter(Boolean)
+            .join(', ') ||
+          'Not provided'
+        }
+      </span>
+    </div>
+
   </div>
 
 
@@ -382,185 +833,55 @@ body {
   <div class="meta">
 
     <div class="meta-row">
-      <span class="meta-label">Date:</span>
+      <span class="meta-label">
+        Date:
+      </span>
       ${formatDate(now)}
     </div>
 
     <div class="meta-row">
-      <span class="meta-label">Time:</span>
+      <span class="meta-label">
+        Time:
+      </span>
       ${formatTime(now)}
     </div>
 
     <div class="meta-row">
-      <span class="meta-label">Model:</span>
-      MobileNetV3
+      <span class="meta-label">
+        Analyses:
+      </span>
+      ${
+        [
+          hasImage
+            ? 'Image'
+            : null,
+          hasAudio
+            ? 'Voice'
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' + ')
+      }
     </div>
 
     <div class="meta-row">
-      <span class="meta-label">Inference:</span>
+      <span class="meta-label">
+        Inference:
+      </span>
       On-device
     </div>
 
   </div>
 
 
-  <!-- ANALYZED IMAGE -->
+  <!-- IMAGE ANALYSIS -->
 
-  <div class="section">
-
-    <div class="section-title">
-      ANALYZED IMAGE
-    </div>
-
-    <div class="image-container">
-
-      <img
-        class="analysis-image"
-        src="${imageBase64}"
-      />
-
-    </div>
-
-  </div>
+  ${imageSection}
 
 
-  <!-- MODEL RESULT -->
+  <!-- AUDIO ANALYSIS -->
 
-  <div class="section">
-
-    <div class="section-title">
-      MODEL RESULT
-    </div>
-
-    <div class="result">
-
-      <div class="prediction-label">
-        Prediction
-      </div>
-
-      <div class="prediction">
-        ${result.className}
-      </div>
-
-      <div class="confidence">
-        Confidence:
-        <strong>${confidence}%</strong>
-      </div>
-
-
-      <!-- CANCER -->
-
-      <div class="bar-row">
-
-        <div class="bar-header">
-
-          <span>
-            CANCER
-          </span>
-
-          <strong>
-            ${cancerPercentage}%
-          </strong>
-
-        </div>
-
-        <div class="bar-background">
-
-          <div
-            class="bar"
-            style="width:${cancerPercentage}%"
-          ></div>
-
-        </div>
-
-      </div>
-
-
-      <!-- NON CANCER -->
-
-      <div class="bar-row">
-
-        <div class="bar-header">
-
-          <span>
-            NON CANCER
-          </span>
-
-          <strong>
-            ${nonCancerPercentage}%
-          </strong>
-
-        </div>
-
-        <div class="bar-background">
-
-          <div
-            class="bar"
-            style="width:${nonCancerPercentage}%"
-          ></div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- MODEL INFORMATION -->
-
-  <div class="section">
-
-    <div class="section-title">
-      MODEL INFORMATION
-    </div>
-
-    <table class="info-table">
-
-      <tr>
-        <td class="info-label">
-          Model
-        </td>
-
-        <td>
-          MobileNetV3
-        </td>
-      </tr>
-
-      <tr>
-        <td class="info-label">
-          Platform
-        </td>
-
-        <td>
-          Android
-        </td>
-      </tr>
-
-      <tr>
-        <td class="info-label">
-          Inference
-        </td>
-
-        <td>
-          On-device
-        </td>
-      </tr>
-
-      <tr>
-        <td class="info-label">
-          Input
-        </td>
-
-        <td>
-          Oral image
-        </td>
-      </tr>
-
-    </table>
-
-  </div>
+  ${audioSection}
 
 
   <!-- DISCLAIMER -->
@@ -573,13 +894,15 @@ body {
 
     <div class="notice-text">
 
-      This report contains an AI model prediction
-      intended for research and demonstration purposes
-      only. It is not a medical diagnosis and should not
-      replace professional medical evaluation.
+      This report contains AI model predictions
+      intended for research and demonstration
+      purposes only. It is not a medical diagnosis
+      and should not replace professional medical
+      evaluation.
 
-      Always consult a qualified healthcare professional
-      for proper evaluation and diagnosis.
+      Always consult a qualified healthcare
+      professional for proper evaluation and
+      diagnosis.
 
     </div>
 
@@ -589,9 +912,7 @@ body {
   <!-- FOOTER -->
 
   <div class="footer">
-
     OralScan • AI-assisted research tool
-
   </div>
 
 </div>
@@ -603,12 +924,15 @@ body {
 
   const file = await generatePDF({
     html,
-    fileName: `OralScan_Report_${now.getTime()}`,
+    fileName:
+      `OralScan_Diagnosis_Report_${now.getTime()}`,
     directory: 'Documents',
   });
 
   if (!file.filePath) {
-    throw new Error('Failed to generate PDF.');
+    throw new Error(
+      'Failed to generate PDF.',
+    );
   }
 
   return file.filePath;
@@ -616,13 +940,20 @@ body {
 
 export async function shareReport(filePath) {
   if (!filePath) {
-    throw new Error('No report file available.');
+    throw new Error(
+      'No report file available.',
+    );
   }
 
-  console.log('SHARING PDF PATH:', filePath);
+  console.log(
+    'SHARING PDF PATH:',
+    filePath,
+  );
 
   if (!SharePdf) {
-    throw new Error('SharePdf native module is not available.');
+    throw new Error(
+      'SharePdf native module is not available.',
+    );
   }
 
   await SharePdf.share(filePath);

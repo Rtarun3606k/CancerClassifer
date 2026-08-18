@@ -1,15 +1,10 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 
 export default function AppHeader({
   colors,
   title = 'OralScan',
-  subtitle = 'AI-powered oral analysis',
+  subtitle = '',
   status = 'READY',
 }) {
   return (
@@ -24,22 +19,12 @@ export default function AppHeader({
             />
           </View>
 
-          <Text
-            style={[
-              styles.title,
-              { color: colors.onBackground },
-            ]}
-          >
+          <Text style={[styles.title, { color: colors.onBackground }]}>
             {title}
           </Text>
         </View>
 
-        <Text
-          style={[
-            styles.subtitle,
-            { color: colors.onSurfaceVariant },
-          ]}
-        >
+        <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
           {subtitle}
         </Text>
       </View>
@@ -48,8 +33,7 @@ export default function AppHeader({
         style={[
           styles.status,
           {
-            backgroundColor:
-              colors.primaryContainer,
+            backgroundColor: colors.primaryContainer,
           },
         ]}
       >
@@ -57,8 +41,7 @@ export default function AppHeader({
           style={[
             styles.statusDot,
             {
-              backgroundColor:
-                colors.primary,
+              backgroundColor: colors.primary,
             },
           ]}
         />
@@ -83,7 +66,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 5,
+    
   },
 
   brandRow: {

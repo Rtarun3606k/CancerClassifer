@@ -1,39 +1,42 @@
-import React, {
-  useEffect,
-  useState,
-} from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   ActivityIndicator,
   NativeModules,
   StatusBar,
   View,
+  Image,
 } from 'react-native';
 
-import AsyncStorage from
-  '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Onboarding from './src/Onboarding';
 
-import ImageAnalysisScreen
-  from './src/screens/ImageAnalysisScreen';
+import PatientDetailsScreen from './src/screens/PatientDetailsScreen';
 
-import AudioAnalysisScreen
-  from './src/screens/AudioAnalysisScreen';
+import ImageAnalysisScreen from './src/screens/ImageAnalysisScreen';
 
-const {
-  AndroidTheme,
-} = NativeModules;
+import AudioAnalysisScreen from './src/screens/AudioAnalysisScreen';
+import AnalysisSelectionScreen from './src/screens/AnalysisSelectionScreen';
+import HistoryScreen from './src/screens/HistoryScreen';
+import HomeScreen from './src/screens/HomeScreen';
+
+import { DiagnosisProvider } from './src/context/DiagnosisContext';
+import DisclaimerScreen from './src/screens/DisclaimerScreen';
+import AppHeader from './src/components/AppHeader';
+
+import { useDiagnosis } from './src/context/DiagnosisContext';
+import ResultsScreen from './src/screens/ResultsScreen';
+
+import { initializeDatabase } from './src/services/database';
+import DiagnosisDetailsScreen from './src/screens/DiagnosisDetailsScreen';
+
+const { AndroidTheme } = NativeModules;
 
 function androidColorToHex(color) {
-  const unsigned =
-    color >>> 0;
+  const unsigned = color >>> 0;
 
-  return `#${(
-    unsigned & 0xffffff
-  )
-    .toString(16)
-    .padStart(6, '0')}`;
+  return `#${(unsigned & 0xffffff).toString(16).padStart(6, '0')}`;
 }
 
 function createColors(theme) {
@@ -44,202 +47,246 @@ function createColors(theme) {
     secondary: theme.secondary,
     tertiary: theme.tertiary,
 
-    background:
-      theme.background,
+    background: theme.background,
 
-    surface:
-      dark
-        ? '#202124'
-        : '#FFFFFF',
+    surface: dark ? '#202124' : '#FFFFFF',
 
-    surfaceContainer:
-      dark
-        ? '#292A2D'
-        : '#F1F3F4',
+    surfaceContainer: dark ? '#292A2D' : '#F1F3F4',
 
-    onSurface:
-      theme.onBackground,
+    surfaceContainerHighest: dark ? '#333537' : '#E8EAED',
 
-    onSurfaceVariant:
-      dark
-        ? '#C4C7C5'
-        : '#5F6368',
+    surfaceContainerLow: dark ? '#242528' : '#F8F9FA',
 
-    outline:
-      dark
-        ? '#444746'
-        : '#DADCE0',
+    onSurface: theme.onBackground,
 
-    primaryContainer:
-      dark
-        ? '#304B3A'
-        : '#D9F2E2',
+    onSurfaceVariant: dark ? '#C4C7C5' : '#5F6368',
 
-    onPrimaryContainer:
-      dark
-        ? '#B8F0C8'
-        : '#12351E',
+    outline: dark ? '#444746' : '#DADCE0',
+
+    outlineVariant: dark ? '#5F6368' : '#C4C7C5',
+
+    primaryContainer: dark ? '#304B3A' : '#D9F2E2',
+
+    onPrimaryContainer: dark ? '#B8F0C8' : '#12351E',
 
     onPrimary: '#FFFFFF',
 
     error: theme.error,
 
-    errorContainer:
-      dark
-        ? '#5C2B2B'
-        : '#F9DEDC',
+    errorContainer: dark ? '#5C2B2B' : '#F9DEDC',
 
-    onErrorContainer:
-      dark
-        ? '#F9DEDC'
-        : '#410E0B',
+    onErrorContainer: dark ? '#F9DEDC' : '#410E0B',
   };
 }
 
-export default function App() {
-  const [theme, setTheme] =
-    useState(null);
+function AppContent() {
+  const [theme, setTheme] = useState(null);
 
-  const [showOnboarding, setShowOnboarding] =
-    useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(null);
 
-  const [screen, setScreen] =
-    useState('image');
+  const [screen, setScreen] = useState('home');
+
+  const { diagnosis } = useDiagnosis();
+
+  const [selectedDiagnosisId, setSelectedDiagnosisId] =
+  useState(null);
 
   useEffect(() => {
-    AsyncStorage
-      .getItem('onboarding_complete')
-      .then(value => {
-        setShowOnboarding(
-          value !== 'true',
-        );
-      });
+    initializeDatabase().catch(error => {
+      console.error('DATABASE INITIALIZATION ERROR:', error);
+    });
   }, []);
 
   useEffect(() => {
-    AndroidTheme
-      .getTheme()
+    AsyncStorage.getItem('onboarding_complete').then(value => {
+      setShowOnboarding(value !== 'true');
+    });
+  }, []);
+
+  useEffect(() => {
+    AndroidTheme.getTheme()
       .then(nativeTheme => {
         setTheme({
-          primary:
-            androidColorToHex(
-              nativeTheme.primary,
-            ),
+          primary: androidColorToHex(nativeTheme.primary),
 
-          secondary:
-            androidColorToHex(
-              nativeTheme.secondary,
-            ),
+          secondary: androidColorToHex(nativeTheme.secondary),
 
-          tertiary:
-            androidColorToHex(
-              nativeTheme.tertiary,
-            ),
+          tertiary: androidColorToHex(nativeTheme.tertiary),
 
-          background:
-            androidColorToHex(
-              nativeTheme.background,
-            ),
+          background: androidColorToHex(nativeTheme.background),
 
-          onBackground:
-            androidColorToHex(
-              nativeTheme.onBackground,
-            ),
+          onBackground: androidColorToHex(nativeTheme.onBackground),
 
-          error:
-            androidColorToHex(
-              nativeTheme.error,
-            ),
+          error: androidColorToHex(nativeTheme.error),
 
-          isDark:
-            nativeTheme.isDark,
+          isDark: nativeTheme.isDark,
         });
       })
       .catch(error => {
-        console.error(
-          'Theme error:',
-          error,
-        );
+        console.error('Theme error:', error);
       });
   }, []);
 
-  const completeOnboarding =
-    async () => {
-      await AsyncStorage.setItem(
-        'onboarding_complete',
-        'true',
-      );
+  const completeOnboarding = async () => {
+    await AsyncStorage.setItem('onboarding_complete', 'true');
 
-      setShowOnboarding(false);
-    };
+    setShowOnboarding(false);
 
-  if (
-    showOnboarding === null ||
-    theme === null
-  ) {
+    // Start the actual diagnosis flow
+    setScreen('disclaimer');
+  };
+
+  if (showOnboarding === null || theme === null) {
     return (
       <View
         style={{
           flex: 1,
-          justifyContent:
-            'center',
-          alignItems:
-            'center',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme?.isDark ? '#202124' : '#FFFFFF',
         }}
       >
-        <ActivityIndicator />
+        <Image
+          source={require('./assets/oralscan.png')}
+          style={{
+            width: 270,
+            height: 270,
+            resizeMode: 'contain',
+          }}
+        />
       </View>
     );
   }
 
   if (showOnboarding) {
-    return (
-      <Onboarding
-        onComplete={
-          completeOnboarding
-        }
-      />
-    );
+    return <Onboarding onComplete={completeOnboarding} />;
   }
 
-  const colors =
-    createColors(theme);
+  const colors = createColors(theme);
 
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor:
-          colors.background,
+        backgroundColor: colors.background,
       }}
     >
       <StatusBar
-        barStyle={
-          theme.isDark
-            ? 'light-content'
-            : 'dark-content'
-        }
-        backgroundColor={
-          theme.background
-        }
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.background}
         translucent={false}
       />
 
-      {screen === 'image' ? (
+      <View
+        style={{
+          marginTop: 30,
+          marginBottom: -20,
+          backgroundColor: colors.background,
+        }}
+      >
+        <AppHeader colors={colors} />
+      </View>
+      {screen === 'disclaimer' && (
+        <DisclaimerScreen
+          colors={colors}
+          onContinue={() => setScreen('patientDetails')}
+        />
+      )}
+
+      {screen === 'patientDetails' && (
+        <PatientDetailsScreen
+          colors={colors}
+          onContinue={() => setScreen('analysisSelection')}
+          onBack={() => setScreen('disclaimer')}
+        />
+      )}
+
+      {screen === 'home' && (
+        <HomeScreen
+          colors={colors}
+          onImage={() => setScreen('image')}
+          onAudio={() => setScreen('audio')}
+          onStartDiagnosis={() => setScreen('disclaimer')}
+          onHistory={() => setScreen('history')}
+        />
+      )}
+
+      {screen === 'image' && (
         <ImageAnalysisScreen
           colors={colors}
-          onAudio={() =>
-            setScreen('audio')
-          }
+          onAudio={() => {
+            if (diagnosis.selectedAnalyses.audio) {
+              setScreen('audio');
+            } else {
+              setScreen('results');
+            }
+          }}
+          onHome={() => setScreen('home')}
+          onComplete={() => {
+            if (diagnosis.selectedAnalyses.audio) {
+              setScreen('audio');
+            } else {
+              setScreen('results');
+            }
+          }}
         />
-      ) : (
+      )}
+
+      {screen === 'audio' && (
         <AudioAnalysisScreen
           colors={colors}
-          onImage={() =>
-            setScreen('image')
-          }
+          onComplete={() => {
+            setScreen('results');
+          }}
+          onImage={() => setScreen('image')}
+          onHome={() => setScreen('home')}
+        />
+      )}
+
+      {screen === 'analysisSelection' && (
+        <AnalysisSelectionScreen
+          colors={colors}
+          onBack={() => setScreen('patientDetails')}
+          onStart={({ image, audio }) => {
+            if (image) {
+              setScreen('image');
+            } else if (audio) {
+              setScreen('audio');
+            }
+          }}
+        />
+      )}
+
+      {screen === 'results' && (
+        <ResultsScreen colors={colors} onHome={() => setScreen('home')} />
+      )}
+
+      {screen === 'history' && (
+        <HistoryScreen
+          colors={colors}
+          onBack={() => setScreen('home')}
+          onSelectDiagnosis={diagnosis => {
+            setSelectedDiagnosisId(diagnosis.id);
+            setScreen('diagnosisDetails');
+          }}
+        />
+      )}
+
+      {screen === 'diagnosisDetails' && (
+        <DiagnosisDetailsScreen
+          colors={colors}
+          diagnosisId={selectedDiagnosisId}
+          onBack={() => setScreen('history')}
         />
       )}
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <DiagnosisProvider>
+      <AppContent />
+    </DiagnosisProvider>
   );
 }

@@ -17,20 +17,25 @@ import { classifyAudio } from '../ml/audio/audioModel';
 
 import { pick, types } from '@react-native-documents/picker';
 
-import AppHeader from '../components/AppHeader';
 import AppFooter from '../components/AppFooter';
 import ProbabilityBar from '../components/ProbabilityBar';
 
 import RNFS from 'react-native-fs';
 
-export default function AudioAnalysisScreen({ colors, onImage }) {
+import { useDiagnosis } from '../context/DiagnosisContext';
+import { copyDiagnosisFile } from '../services/diagnosisStorage';
+import getExtensionFromFile from '../utils/getFileExtision';
+
+export default function AudioAnalysisScreen({ colors, onImage, onComplete }) {
   const [isRecording, setIsRecording] = useState(false);
 
   const [analyzing, setAnalyzing] = useState(false);
 
-  const [audioResult, setAudioResult] = useState(null);
-
   const [audioError, setAudioError] = useState(null);
+
+  const [audioResult, setAudioResultLocal] = useState(null);
+
+  const { diagnosis, setAudioResult } = useDiagnosis();
 
   const requestMicrophonePermission = async () => {
     if (Platform.OS !== 'android') {
@@ -53,32 +58,10 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  async function copyContentUriToLocalFile(uri) {
-    if (!uri) {
-      throw new Error('No audio URI provided.');
-    }
-
-    if (!uri.startsWith('content://')) {
-      return uri;
-    }
-
-    const destination = `${RNFS.CachesDirectoryPath}/uploaded_audio.wav`;
-
-    await RNFS.copyFile(uri, destination);
-
-    const exists = await RNFS.exists(destination);
-
-    if (!exists) {
-      throw new Error('Failed to copy selected audio file.');
-    }
-
-    return destination;
-  }
-
   const handleStartRecording = async () => {
     try {
       setAudioError(null);
-      setAudioResult(null);
+      setAudioResultLocal(null);
 
       const allowed = await requestMicrophonePermission();
 
@@ -93,7 +76,7 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
     } catch (error) {
       console.error('Recording start error:', error);
 
-      setAudioError(error.message || 'Unable to start recording.');
+      setAudioError(error?.message || 'Unable to start recording.');
     }
   };
 
@@ -105,17 +88,45 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
 
       const path = await stopRecording();
 
+      if (!path) {
+        throw new Error('Recording file was not created.');
+      }
+
       console.log('AUDIO FILE:', path);
 
+      // Run the model on the original recording
       const result = await classifyAudio(path);
 
       console.log('FINAL AUDIO RESULT:', result);
 
-      setAudioResult(result);
+      if (!diagnosis?.id) {
+  throw new Error(
+    'No active diagnosis ID.',
+  );
+}
+
+
+      // Copy recording into the current diagnosis folder
+      const storedAudio = await copyDiagnosisFile(
+        path,
+        diagnosis.id,
+        `audio.wav`,
+      );
+
+      console.log('STORED AUDIO:', storedAudio);
+
+      // Store permanent path + result in DiagnosisContext
+      setAudioResult({
+        path: storedAudio,
+        result,
+      });
+
+      // Local state for this screen
+      setAudioResultLocal(result);
     } catch (error) {
       console.error('AUDIO ANALYSIS ERROR:', error);
 
-      setAudioError(error.message || 'Unable to analyze audio.');
+      setAudioError(error?.message || 'Unable to analyze audio.');
     } finally {
       setAnalyzing(false);
     }
@@ -149,83 +160,59 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
   };
 
   const handleUploadAudio = async () => {
-  try {
-    setAudioError(null);
-    setAudioResult(null);
-    setAnalyzing(true);
+    try {
+      setAudioError(null);
+      setAudioResultLocal(null);
+      setAnalyzing(true);
 
-    const [file] = await pick({
-      type: [types.audio],
-      allowMultiSelection: false,
-    });
+      const [file] = await pick({
+        type: [types.audio],
+        allowMultiSelection: false,
+      });
 
-    console.log(
-      'SELECTED AUDIO:',
-      file,
-    );
+      console.log('SELECTED AUDIO:', file);
 
-    if (!file) {
-      throw new Error(
-        'No audio file selected.',
-      );
+      if (!file) {
+        return;
+      }
+
+      const selectedUri = file.fileCopyUri || file.uri;
+
+      if (!selectedUri) {
+        throw new Error('Unable to access the selected audio file.');
+      }
+
+      console.log('SELECTED AUDIO URI:', selectedUri);
+
+      const audioPath = await copyAudioToLocalCache(selectedUri);
+
+      console.log('LOCAL AUDIO PATH:', audioPath);
+
+      const result = await classifyAudio(audioPath);
+
+      console.log('UPLOADED AUDIO RESULT:', result);
+
+      // Local screen state
+      setAudioResultLocal(result);
+
+      // Global diagnosis state
+      setAudioResult({
+        path: audioPath,
+        result,
+      });
+    } catch (error) {
+      if (error?.code === 'OPERATION_CANCELED') {
+        return;
+      }
+
+      console.error('Audio upload error:', error);
+
+      setAudioError(error?.message || 'Unable to analyze the selected audio.');
+    } finally {
+      setAnalyzing(false);
     }
+  };
 
-    const selectedUri =
-      file.fileCopyUri || file.uri;
-
-    if (!selectedUri) {
-      throw new Error(
-        'Unable to access the selected audio file.',
-      );
-    }
-
-    console.log(
-      'SELECTED AUDIO URI:',
-      selectedUri,
-    );
-
-    const audioPath =
-      await copyAudioToLocalCache(
-        selectedUri,
-      );
-
-    console.log(
-      'LOCAL AUDIO PATH:',
-      audioPath,
-    );
-
-    const result =
-      await classifyAudio(audioPath);
-
-    console.log(
-      'UPLOADED AUDIO RESULT:',
-      result,
-    );
-
-    setAudioResult(result);
-
-  } catch (error) {
-    if (
-      error?.code ===
-      'OPERATION_CANCELED'
-    ) {
-      return;
-    }
-
-    console.error(
-      'Audio upload error:',
-      error,
-    );
-
-    setAudioError(
-      error.message ||
-        'Unable to analyze the selected audio.',
-    );
-
-  } finally {
-    setAnalyzing(false);
-  }
-};
   const pathology = audioResult?.pathologyProbability ?? 0;
 
   const normal = audioResult?.normalProbability ?? 0;
@@ -237,13 +224,6 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      <AppHeader
-        colors={colors}
-        title="OralScan"
-        subtitle="AI-powered voice analysis"
-        status={isRecording ? 'RECORDING' : analyzing ? 'ANALYZING' : 'READY'}
-      />
-
       <View
         style={[
           styles.recordCard,
@@ -453,7 +433,12 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
 
           <Pressable
             onPress={() => {
-              setAudioResult(null);
+              setAudioResultLocal(null);
+
+              setAudioResult({
+                path: null,
+                result: null,
+              });
             }}
             style={[
               styles.secondaryButton,
@@ -509,26 +494,28 @@ export default function AudioAnalysisScreen({ colors, onImage }) {
         </View>
       )}
 
-      <Pressable
-        onPress={onImage}
-        style={[
-          styles.secondaryButton,
-          {
-            borderColor: colors.outline,
-          },
-        ]}
-      >
-        <Text
+      {audioResult && !analyzing && (
+        <Pressable
+          onPress={onComplete}
           style={[
-            styles.secondaryButtonText,
+            styles.secondaryButton,
             {
-              color: colors.primary,
+              borderColor: colors.outline,
             },
           ]}
         >
-          Analyze Oral Image Instead
-        </Text>
-      </Pressable>
+          <Text
+            style={[
+              styles.secondaryButtonText,
+              {
+                color: colors.primary,
+              },
+            ]}
+          >
+            Continue to Results
+          </Text>
+        </Pressable>
+      )}
 
       <AppFooter colors={colors} />
     </ScrollView>

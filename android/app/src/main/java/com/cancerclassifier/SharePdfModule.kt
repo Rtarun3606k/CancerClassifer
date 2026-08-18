@@ -59,4 +59,99 @@ class SharePdfModule(
             )
         }
     }
+
+
+
+    @ReactMethod
+fun open(filePath: String, promise: Promise) {
+    try {
+        val file = File(filePath)
+
+        if (!file.exists()) {
+            promise.reject(
+                "FILE_NOT_FOUND",
+                "PDF does not exist: $filePath"
+            )
+            return
+        }
+
+        val uri: Uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(
+                uri,
+                "application/pdf"
+            )
+
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+            )
+        }
+
+        context.startActivity(intent)
+
+        promise.resolve(true)
+
+    } catch (e: android.content.ActivityNotFoundException) {
+        promise.reject(
+            "NO_PDF_VIEWER",
+            "No PDF viewer is installed on this device.",
+            e
+        )
+
+    } catch (e: Exception) {
+        promise.reject(
+            "OPEN_ERROR",
+            "Unable to open PDF.",
+            e
+        )
+    }
+}
+
+
+@ReactMethod
+fun openAudio(filePath: String, promise: Promise) {
+    try {
+        val file = File(filePath)
+
+        if (!file.exists()) {
+            promise.reject(
+                "FILE_NOT_FOUND",
+                "Audio does not exist: $filePath"
+            )
+            return
+        }
+
+        val uri: Uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "audio/wav")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        context.startActivity(intent)
+
+        promise.resolve(true)
+
+    } catch (e: Exception) {
+        promise.reject(
+            "OPEN_AUDIO_ERROR",
+            "Unable to open audio",
+            e
+        )
+    }
+}
 }

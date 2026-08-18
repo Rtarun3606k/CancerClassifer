@@ -8,4 +8,19 @@
         <item name="android:fontFamily">sans</item>
     </style>
 
+    <style name="Theme.OralScan.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">
+            @color/splash_background
+        </item>
+
+        <item name="windowSplashScreenAnimatedIcon">
+            @drawable/oralscan
+        </item>
+
+        <item name="postSplashScreenTheme">
+            @style/AppTheme
+        </item>
+    </style>
+
 </resources>
+

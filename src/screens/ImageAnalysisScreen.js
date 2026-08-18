@@ -10,144 +10,102 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import {
-  launchImageLibrary,
-} from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 
-import {
-  classifyImage,
-} from '../ml/model';
+import { classifyImage } from '../ml/model';
 
-import {
-  generateReport,
-  shareReport,
-} from '../report/reportGenerator';
-
-import AppHeader from '../components/AppHeader';
 import AppFooter from '../components/AppFooter';
 import ProbabilityBar from '../components/ProbabilityBar';
+import { useDiagnosis } from '../context/DiagnosisContext';
+import { copyDiagnosisFile } from '../services/diagnosisStorage';
+import { createDiagnosisId } from '../utils/diagnosisId';
+import { getExtensionFromFile } from '../utils/getFileExtision';
 
-export default function ImageAnalysisScreen({
-  colors,
-  onAudio,
-}) {
-  const [imageUri, setImageUri] =
-    useState(null);
+export default function ImageAnalysisScreen({ colors, onAudio, onComplete }) {
+  const [imageUri, setImageUri] = useState(null);
 
-  const [result, setResult] =
-    useState(null);
+  const [result, setResult] = useState(null);
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [generatingReport, setGeneratingReport] =
-    useState(false);
+  const { diagnosis, setImageResult } = useDiagnosis();
 
   const pickImage = async () => {
-    const response =
-      await launchImageLibrary({
-        mediaType: 'photo',
-        selectionLimit: 1,
-      });
+    const response = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+    });
 
-    if (
-      response.didCancel ||
-      !response.assets?.length
-    ) {
+    if (response.didCancel || !response.assets?.length) {
       return;
     }
 
-    const uri =
-      response.assets[0].uri;
+    const file = response.assets[0];
+    const uri = file.uri;
+
+    if (!uri) {
+      return;
+    }
 
     setImageUri(uri);
     setResult(null);
     setLoading(true);
 
     try {
-      const prediction =
-        await classifyImage(uri);
+      // Classify the original selected image
+      const prediction = await classifyImage(uri);
 
-      setResult(prediction);
-    } catch (error) {
-      console.error(
-        'Classification error:',
-        error,
+      // Get extension from the actual selected file
+      const fileExt = getExtensionFromFile(file, 'jpg');
+
+      if (!diagnosis?.id) {
+        throw new Error('No active diagnosis ID.');
+      }
+      // Store a permanent copy inside this diagnosis
+      const storedImage = await copyDiagnosisFile(
+        uri,
+        diagnosis.id,
+        `image.${fileExt}`,
       );
 
+      console.log('STORED IMAGE:', storedImage);
+
+      setResult(prediction);
+
+      // IMPORTANT:
+      // Store the permanent path, not the temporary picker URI
+      setImageResult({
+        uri: storedImage,
+        result: prediction,
+      });
+    } catch (error) {
+      console.error('Classification error:', error);
+
       setResult({
-        error:
-          error.message ||
-          'Unable to analyze image.',
+        error: error.message || 'Unable to analyze image.',
       });
     } finally {
       setLoading(false);
     }
   };
+  const cancerProbability = result?.probabilities?.CANCER ?? 0;
 
-  const createReport = async () => {
-    if (
-      !imageUri ||
-      !result ||
-      result.error
-    ) {
-      return;
-    }
+  const nonCancerProbability = result?.probabilities?.['NON CANCER'] ?? 0;
 
-    setGeneratingReport(true);
-
-    try {
-      const filePath =
-        await generateReport({
-          imageUri,
-          result,
-        });
-
-      console.log(
-        'PDF RESULT:',
-        filePath,
-      );
-
-      await shareReport(filePath);
-    } catch (error) {
-      console.error(
-        'Report generation error:',
-        error,
-      );
-    } finally {
-      setGeneratingReport(false);
-    }
-  };
-
-  const cancerProbability =
-    result?.probabilities?.CANCER ?? 0;
-
-  const nonCancerProbability =
-    result?.probabilities?.['NON CANCER'] ?? 0;
-
-  const isCancer =
-    result?.classIndex === 0;
+  const isCancer = result?.classIndex === 0;
 
   return (
     <ScrollView
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      <AppHeader
-        colors={colors}
-        title="OralScan"
-        subtitle="AI-powered oral image analysis"
-      />
-
       {/* Image */}
       <View
         style={[
           styles.imageCard,
           {
-            backgroundColor:
-              colors.surface,
-            borderColor:
-              colors.outline,
+            backgroundColor: colors.surface,
+            borderColor: colors.outline,
           },
         ]}
       >
@@ -167,8 +125,7 @@ export default function ImageAnalysisScreen({
                   style={[
                     styles.badge,
                     {
-                      backgroundColor:
-                        colors.surface,
+                      backgroundColor: colors.surface,
                     },
                   ]}
                 >
@@ -176,8 +133,7 @@ export default function ImageAnalysisScreen({
                     style={[
                       styles.badgeText,
                       {
-                        color:
-                          colors.onSurface,
+                        color: colors.onSurface,
                       },
                     ]}
                   >
@@ -193,8 +149,7 @@ export default function ImageAnalysisScreen({
               style={[
                 styles.uploadIcon,
                 {
-                  backgroundColor:
-                    colors.primaryContainer,
+                  backgroundColor: colors.primaryContainer,
                 },
               ]}
             >
@@ -202,8 +157,7 @@ export default function ImageAnalysisScreen({
                 style={[
                   styles.uploadIconText,
                   {
-                    color:
-                      colors.primary,
+                    color: colors.primary,
                   },
                 ]}
               >
@@ -215,8 +169,7 @@ export default function ImageAnalysisScreen({
               style={[
                 styles.placeholderTitle,
                 {
-                  color:
-                    colors.onSurface,
+                  color: colors.onSurface,
                 },
               ]}
             >
@@ -227,13 +180,11 @@ export default function ImageAnalysisScreen({
               style={[
                 styles.placeholderText,
                 {
-                  color:
-                    colors.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 },
               ]}
             >
-              Choose a clear image from your
-              gallery to begin analysis.
+              Choose a clear image from your gallery to begin analysis.
             </Text>
           </View>
         )}
@@ -246,28 +197,20 @@ export default function ImageAnalysisScreen({
         style={({ pressed }) => [
           styles.mainButton,
           {
-            backgroundColor:
-              colors.primary,
-            opacity:
-              pressed || loading
-                ? 0.75
-                : 1,
+            backgroundColor: colors.primary,
+            opacity: pressed || loading ? 0.75 : 1,
           },
         ]}
       >
         {loading ? (
           <>
-            <ActivityIndicator
-              size="small"
-              color={colors.onPrimary}
-            />
+            <ActivityIndicator size="small" color={colors.onPrimary} />
 
             <Text
               style={[
                 styles.mainButtonText,
                 {
-                  color:
-                    colors.onPrimary,
+                  color: colors.onPrimary,
                 },
               ]}
             >
@@ -279,14 +222,11 @@ export default function ImageAnalysisScreen({
             style={[
               styles.mainButtonText,
               {
-                color:
-                  colors.onPrimary,
+                color: colors.onPrimary,
               },
             ]}
           >
-            {imageUri
-              ? 'Analyze Another Image'
-              : 'Choose Image'}
+            {imageUri ? 'Analyze Another Image' : 'Choose Image'}
           </Text>
         )}
       </Pressable>
@@ -297,23 +237,18 @@ export default function ImageAnalysisScreen({
           style={[
             styles.analysisCard,
             {
-              backgroundColor:
-                colors.primaryContainer,
+              backgroundColor: colors.primaryContainer,
             },
           ]}
         >
-          <ActivityIndicator
-            size="small"
-            color={colors.primary}
-          />
+          <ActivityIndicator size="small" color={colors.primary} />
 
           <View style={styles.analysisText}>
             <Text
               style={[
                 styles.analysisTitle,
                 {
-                  color:
-                    colors.onPrimaryContainer,
+                  color: colors.onPrimaryContainer,
                 },
               ]}
             >
@@ -324,160 +259,114 @@ export default function ImageAnalysisScreen({
               style={[
                 styles.analysisSubtitle,
                 {
-                  color:
-                    colors.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 },
               ]}
             >
-              Running MobileNetV3 locally
-              on your device
+              Running MobileNetV3 locally on your device
             </Text>
           </View>
         </View>
       )}
 
       {/* Result */}
-      {result &&
-        !result.error &&
-        !loading && (
-          <View
+      {result && !result.error && !loading && (
+        <View
+          style={[
+            styles.resultCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.outline,
+            },
+          ]}
+        >
+          <Text
             style={[
-              styles.resultCard,
+              styles.eyebrow,
               {
-                backgroundColor:
-                  colors.surface,
-                borderColor:
-                  colors.outline,
+                color: colors.onSurfaceVariant,
               },
             ]}
           >
-            <Text
-              style={[
-                styles.eyebrow,
-                {
-                  color:
-                    colors.onSurfaceVariant,
-                },
-              ]}
-            >
-              ANALYSIS RESULT
-            </Text>
+            ANALYSIS RESULT
+          </Text>
 
-            <Text
-              style={[
-                styles.heading,
-                {
-                  color:
-                    colors.onSurface,
-                },
-              ]}
-            >
-              Model prediction
-            </Text>
+          <Text
+            style={[
+              styles.heading,
+              {
+                color: colors.onSurface,
+              },
+            ]}
+          >
+            Model prediction
+          </Text>
 
-            <View style={styles.predictionRow}>
-              <View>
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color:
-                        colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  Prediction
-                </Text>
+          <View style={styles.predictionRow}>
+            <View>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: colors.onSurfaceVariant,
+                  },
+                ]}
+              >
+                Prediction
+              </Text>
 
-                <Text
-                  style={[
-                    styles.prediction,
-                    {
-                      color:
-                        isCancer
-                          ? colors.error
-                          : colors.primary,
-                    },
-                  ]}
-                >
-                  {result.className}
-                </Text>
-              </View>
-
-              <View style={styles.confidence}>
-                <Text
-                  style={[
-                    styles.confidenceValue,
-                    {
-                      color:
-                        colors.onSurface,
-                    },
-                  ]}
-                >
-                  {(
-                    result.probability *
-                    100
-                  ).toFixed(1)}
-                  %
-                </Text>
-
-                <Text
-                  style={[
-                    styles.confidenceLabel,
-                    {
-                      color:
-                        colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  confidence
-                </Text>
-              </View>
+              <Text
+                style={[
+                  styles.prediction,
+                  {
+                    color: isCancer ? colors.error : colors.primary,
+                  },
+                ]}
+              >
+                {result.className}
+              </Text>
             </View>
 
-            <View style={styles.divider} />
+            <View style={styles.confidence}>
+              <Text
+                style={[
+                  styles.confidenceValue,
+                  {
+                    color: colors.onSurface,
+                  },
+                ]}
+              >
+                {(result.probability * 100).toFixed(1)}%
+              </Text>
 
-            <ProbabilityBar
-              label="CANCER"
-              value={cancerProbability}
-              colors={colors}
-            />
-
-            <ProbabilityBar
-              label="NON CANCER"
-              value={nonCancerProbability}
-              colors={colors}
-            />
-
-            <Pressable
-              onPress={createReport}
-              disabled={
-                generatingReport
-              }
-              style={[
-                styles.reportButton,
-                {
-                  backgroundColor:
-                    colors.primary,
-                },
-              ]}
-            >
-              {generatingReport ? (
-                <ActivityIndicator
-                  color="#FFFFFF"
-                />
-              ) : (
-                <Text
-                  style={
-                    styles.reportButtonText
-                  }
-                >
-                  Generate PDF Report
-                </Text>
-              )}
-            </Pressable>
+              <Text
+                style={[
+                  styles.confidenceLabel,
+                  {
+                    color: colors.onSurfaceVariant,
+                  },
+                ]}
+              >
+                confidence
+              </Text>
+            </View>
           </View>
-        )}
+
+          <View style={styles.divider} />
+
+          <ProbabilityBar
+            label="CANCER"
+            value={cancerProbability}
+            colors={colors}
+          />
+
+          <ProbabilityBar
+            label="NON CANCER"
+            value={nonCancerProbability}
+            colors={colors}
+          />
+        </View>
+      )}
 
       {/* Error */}
       {result?.error && (
@@ -485,8 +374,7 @@ export default function ImageAnalysisScreen({
           style={[
             styles.errorCard,
             {
-              backgroundColor:
-                colors.errorContainer,
+              backgroundColor: colors.errorContainer,
             },
           ]}
         >
@@ -494,8 +382,7 @@ export default function ImageAnalysisScreen({
             style={[
               styles.errorTitle,
               {
-                color:
-                  colors.error,
+                color: colors.error,
               },
             ]}
           >
@@ -506,8 +393,7 @@ export default function ImageAnalysisScreen({
             style={[
               styles.errorText,
               {
-                color:
-                  colors.onErrorContainer,
+                color: colors.onErrorContainer,
               },
             ]}
           >
@@ -518,12 +404,11 @@ export default function ImageAnalysisScreen({
 
       {/* Switch to audio */}
       <Pressable
-        onPress={onAudio}
+        onPress={onComplete}
         style={[
           styles.secondaryButton,
           {
-            borderColor:
-              colors.outline,
+            borderColor: colors.outline,
           },
         ]}
       >
@@ -531,12 +416,11 @@ export default function ImageAnalysisScreen({
           style={[
             styles.secondaryButtonText,
             {
-              color:
-                colors.primary,
+              color: colors.primary,
             },
           ]}
         >
-          Analyze Voice Instead
+          Continue
         </Text>
       </Pressable>
 
@@ -752,5 +636,157 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  patientDialog: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 28,
+    padding: 24,
+
+    // Android elevation
+    elevation: 8,
+
+    // iOS shadow
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+
+  dialogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+
+  dialogIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+
+  dialogIcon: {
+    fontSize: 26,
+    fontWeight: '500',
+  },
+
+  dialogHeaderText: {
+    flex: 1,
+  },
+
+  dialogTitle: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+
+  dialogSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+
+  fieldContainer: {
+    marginBottom: 18,
+  },
+
+  dialogLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+
+  dialogInput: {
+    height: 52,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+
+  dateInput: {
+    height: 52,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+
+  dateInputContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  dateInputText: {
+    fontSize: 16,
+  },
+
+  calendarIcon: {
+    fontSize: 18,
+  },
+
+  calendarContainer: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: -4,
+    marginBottom: 16,
+  },
+
+  dateHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: -8,
+    marginBottom: 20,
+  },
+
+  dialogActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+
+  cancelButton: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+  },
+
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  createButton: {
+    minHeight: 44,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+  },
+
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
