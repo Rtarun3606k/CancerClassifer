@@ -18,6 +18,7 @@ class MainApplication : Application(), ReactApplication {
           add(ThemePackage())
           add(SharePdfPackage())
           add(ReportAssetsPackage())
+          add(AuthPackage())
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },

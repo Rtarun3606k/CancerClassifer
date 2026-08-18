@@ -33,6 +33,8 @@ import DiagnosisDetailsScreen from './src/screens/DiagnosisDetailsScreen';
 
 const { AndroidTheme } = NativeModules;
 
+import AuthScreen from './src/screens/AuthScreen';
+
 function androidColorToHex(color) {
   const unsigned = color >>> 0;
 
@@ -88,8 +90,9 @@ function AppContent() {
 
   const { diagnosis } = useDiagnosis();
 
-  const [selectedDiagnosisId, setSelectedDiagnosisId] =
-  useState(null);
+  const [selectedDiagnosisId, setSelectedDiagnosisId] = useState(null);
+
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     initializeDatabase().catch(error => {
@@ -157,12 +160,23 @@ function AppContent() {
       </View>
     );
   }
+  const colors = createColors(theme);
 
   if (showOnboarding) {
     return <Onboarding onComplete={completeOnboarding} />;
   }
 
-  const colors = createColors(theme);
+
+  if (!authenticated) {
+    return (
+      <AuthScreen
+        colors={colors}
+        onAuthenticated={() => {
+          setAuthenticated(true);
+        }}
+      />
+    );
+  }
 
   return (
     <View
