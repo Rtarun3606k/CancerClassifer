@@ -7,17 +7,23 @@ import {
   StyleSheet,
   Text,
   View,
+  TextInput,
 } from 'react-native';
 
 import { getAllDiagnoses } from '../services/database';
 
-export default function HistoryScreen({
-  colors,
-  onBack,
-  onSelectDiagnosis,
-}) {
+export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
   const [diagnoses, setDiagnoses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filterIndicators = [
+    { key: 'all', label: 'All' },
+    { key: 'image', label: 'Image' },
+    { key: 'audio', label: 'Voice' },
+    { key: 'both', label: 'Both' },
+  ];
 
   const loadHistory = async () => {
     try {
@@ -37,9 +43,7 @@ export default function HistoryScreen({
     loadHistory();
   }, []);
 
-  const reportsCount = diagnoses.filter(
-    item => item.report_path,
-  ).length;
+  const reportsCount = diagnoses.filter(item => item.report_path).length;
 
   const formatDate = value => {
     if (!value) return '';
@@ -66,6 +70,33 @@ export default function HistoryScreen({
     );
   }
 
+  const filteredDiagnoses = diagnoses.filter(item => {
+    const name = item.patient_name || '';
+
+    const matchesSearch = name
+      .toLowerCase()
+      .includes(searchQuery.trim().toLowerCase());
+
+    if (!matchesSearch) {
+      return false;
+    }
+
+    switch (filter) {
+      case 'image':
+        return item.image_selected === 1;
+
+      case 'audio':
+        return item.audio_selected === 1;
+
+      case 'both':
+        return item.image_selected === 1 && item.audio_selected === 1;
+
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
   return (
     <View
       style={[
@@ -80,11 +111,7 @@ export default function HistoryScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-
-        <Pressable
-          onPress={onBack}
-          style={styles.backButton}
-        >
+        <Pressable onPress={onBack} style={styles.backButton}>
           <Text
             style={[
               styles.backText,
@@ -96,7 +123,6 @@ export default function HistoryScreen({
             ‹
           </Text>
         </Pressable>
-
         <Text
           style={[
             styles.eyebrow,
@@ -107,7 +133,6 @@ export default function HistoryScreen({
         >
           ORALSCAN
         </Text>
-
         <Text
           style={[
             styles.title,
@@ -118,20 +143,56 @@ export default function HistoryScreen({
         >
           History
         </Text>
-
         <Text
           style={[
             styles.subtitle,
             {
               color: colors.onSurfaceVariant,
+              marginTop: -35,
+              marginBottom: 10,
             },
           ]}
         >
           Previous screening sessions
         </Text>
+        <View style={styles.filterContainer}>
+          {filterIndicators.map(item => {
+            const active = filter === item.key;
 
+            return (
+              <Pressable
+                key={item.key}
+                onPress={() => setFilter(item.key)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active
+                      ? colors.primary
+                      : colors.surfaceContainerHighest,
+
+                    borderColor: active
+                      ? colors.primary
+                      : colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    {
+                      color: active
+                        ? colors.onPrimary
+                        : colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         {/* Statistics */}
-
         <View style={styles.statsRow}>
           <StatCard
             value={diagnoses.length}
@@ -139,15 +200,26 @@ export default function HistoryScreen({
             colors={colors}
           />
 
-          <StatCard
-            value={reportsCount}
-            label="Reports"
-            colors={colors}
-          />
+          <StatCard value={reportsCount} label="Reports" colors={colors} />
         </View>
 
-        {/* Recent */}
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search by patient name"
+          placeholderTextColor={colors.onSurfaceVariant}
+          autoCapitalize="words"
+          style={[
+            styles.searchInput,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surface,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        />
 
+        {/* Recent */}
         <Text
           style={[
             styles.sectionTitle,
@@ -158,8 +230,7 @@ export default function HistoryScreen({
         >
           RECENT
         </Text>
-
-        {diagnoses.length === 0 ? (
+        {filteredDiagnoses.length === 0 ? (
           <View
             style={[
               styles.emptyCard,
@@ -177,7 +248,7 @@ export default function HistoryScreen({
                 },
               ]}
             >
-              No diagnoses yet
+              No diagnoses found
             </Text>
 
             <Text
@@ -188,20 +259,18 @@ export default function HistoryScreen({
                 },
               ]}
             >
-              Completed diagnoses will appear here.
+              No diagnoses match the selected filter.
             </Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {diagnoses.map(item => (
+            {filteredDiagnoses.map(item => (
               <DiagnosisCard
                 key={item.id}
                 diagnosis={item}
                 colors={colors}
                 formatDate={formatDate}
-                onPress={() =>
-                  onSelectDiagnosis(item)
-                }
+                onPress={() => onSelectDiagnosis(item)}
               />
             ))}
           </View>
@@ -211,11 +280,7 @@ export default function HistoryScreen({
   );
 }
 
-function StatCard({
-  value,
-  label,
-  colors,
-}) {
+function StatCard({ value, label, colors }) {
   return (
     <View
       style={[
@@ -250,17 +315,10 @@ function StatCard({
   );
 }
 
-function DiagnosisCard({
-  diagnosis,
-  colors,
-  formatDate,
-  onPress,
-}) {
-  const hasImage =
-    diagnosis.image_selected === 1;
+function DiagnosisCard({ diagnosis, colors, formatDate, onPress }) {
+  const hasImage = diagnosis.image_selected === 1;
 
-  const hasAudio =
-    diagnosis.audio_selected === 1;
+  const hasAudio = diagnosis.audio_selected === 1;
 
   return (
     <Pressable
@@ -285,8 +343,7 @@ function DiagnosisCard({
             ]}
             numberOfLines={1}
           >
-            {diagnosis.patient_name ||
-              'Unknown patient'}
+            {diagnosis.patient_name || 'Unknown patient'}
           </Text>
 
           <Text
@@ -298,9 +355,7 @@ function DiagnosisCard({
             ]}
           >
             {formatDate(diagnosis.created_at)}
-            {diagnosis.gender
-              ? ` • ${diagnosis.gender}`
-              : ''}
+            {diagnosis.gender ? ` • ${diagnosis.gender}` : ''}
           </Text>
         </View>
 
@@ -320,8 +375,7 @@ function DiagnosisCard({
         style={[
           styles.divider,
           {
-            backgroundColor:
-              colors.outlineVariant,
+            backgroundColor: colors.outlineVariant,
           },
         ]}
       />
@@ -332,14 +386,8 @@ function DiagnosisCard({
         {hasImage && (
           <Result
             label="IMAGE"
-            value={
-              diagnosis.image_prediction ||
-              'Completed'
-            }
-            danger={
-              diagnosis.image_prediction ===
-              'CANCER'
-            }
+            value={diagnosis.image_prediction || 'Completed'}
+            danger={diagnosis.image_prediction === 'CANCER'}
             colors={colors}
           />
         )}
@@ -347,14 +395,8 @@ function DiagnosisCard({
         {hasAudio && (
           <Result
             label="VOICE"
-            value={
-              diagnosis.audio_prediction ||
-              'Completed'
-            }
-            danger={
-              diagnosis.audio_prediction ===
-              'Vocal Pathology'
-            }
+            value={diagnosis.audio_prediction || 'Completed'}
+            danger={diagnosis.audio_prediction === 'Vocal Pathology'}
             colors={colors}
           />
         )}
@@ -367,8 +409,7 @@ function DiagnosisCard({
           style={[
             styles.reportBadge,
             {
-              backgroundColor:
-                colors.primaryContainer,
+              backgroundColor: colors.primaryContainer,
             },
           ]}
         >
@@ -385,8 +426,7 @@ function DiagnosisCard({
             style={[
               styles.reportText,
               {
-                color:
-                  colors.onPrimaryContainer,
+                color: colors.onPrimaryContainer,
               },
             ]}
           >
@@ -398,12 +438,7 @@ function DiagnosisCard({
   );
 }
 
-function Result({
-  label,
-  value,
-  danger,
-  colors,
-}) {
+function Result({ label, value, danger, colors }) {
   return (
     <View style={styles.result}>
       <Text
@@ -421,9 +456,7 @@ function Result({
         style={[
           styles.resultValue,
           {
-            color: danger
-              ? colors.error
-              : colors.primary,
+            color: danger ? colors.error : colors.primary,
           },
         ]}
         numberOfLines={1}
@@ -605,5 +638,34 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     textAlign: 'center',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 18,
+    flexWrap: 'wrap',
+  },
+
+  filterChip: {
+    minHeight: 40,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  filterText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  searchInput: {
+    height: 52,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    marginTop: 12,
+    marginBottom: 12,
   },
 });

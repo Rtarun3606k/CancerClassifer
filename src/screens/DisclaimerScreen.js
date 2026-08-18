@@ -1,9 +1,8 @@
 import React from 'react';
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import AppHeader from '../components/AppHeader';
 
-export function DisclaimerScreen({ colors, onContinue }) {
+export function DisclaimerScreen({ colors, onContinue ,onBack}) {
   return (
     <ScrollView
       style={[
@@ -15,6 +14,9 @@ export function DisclaimerScreen({ colors, onContinue }) {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <Pressable onPress={onBack} style={styles.backButton}>
+        <Text style={[styles.backText, { color: colors.primary }]}>‹ Back</Text>
+      </Pressable>
       <Text
         style={[
           styles.title,

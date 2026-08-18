@@ -18,10 +18,14 @@ import AppFooter from '../components/AppFooter';
 import ProbabilityBar from '../components/ProbabilityBar';
 import { useDiagnosis } from '../context/DiagnosisContext';
 import { copyDiagnosisFile } from '../services/diagnosisStorage';
-import { createDiagnosisId } from '../utils/diagnosisId';
 import { getExtensionFromFile } from '../utils/getFileExtision';
 
-export default function ImageAnalysisScreen({ colors, onAudio, onComplete }) {
+export default function ImageAnalysisScreen({
+  colors,
+  onAudio,
+  onComplete,
+  onBack,
+}) {
   const [imageUri, setImageUri] = useState(null);
 
   const [result, setResult] = useState(null);
@@ -99,6 +103,19 @@ export default function ImageAnalysisScreen({ colors, onAudio, onComplete }) {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
+      <Pressable
+        onPress={onBack}
+        style={[
+          styles.backButton,
+          {
+            marginTop: -30,
+            marginBottom:10,
+          },
+        ]}
+      >
+        <Text style={[styles.backText, { color: colors.primary }]}>‹ Back</Text>
+      </Pressable>
+
       {/* Image */}
       <View
         style={[

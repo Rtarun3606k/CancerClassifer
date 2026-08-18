@@ -166,7 +166,6 @@ function AppContent() {
     return <Onboarding onComplete={completeOnboarding} />;
   }
 
-
   if (!authenticated) {
     return (
       <AuthScreen
@@ -204,6 +203,7 @@ function AppContent() {
         <DisclaimerScreen
           colors={colors}
           onContinue={() => setScreen('patientDetails')}
+          onBack={() => setScreen('home')}
         />
       )}
 
@@ -243,6 +243,7 @@ function AppContent() {
               setScreen('results');
             }
           }}
+          onBack={() => setScreen('analysisSelection')}
         />
       )}
 
@@ -254,6 +255,7 @@ function AppContent() {
           }}
           onImage={() => setScreen('image')}
           onHome={() => setScreen('home')}
+          onBack={() => setScreen('image')}
         />
       )}
 

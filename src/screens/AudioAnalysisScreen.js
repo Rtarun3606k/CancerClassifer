@@ -24,9 +24,13 @@ import RNFS from 'react-native-fs';
 
 import { useDiagnosis } from '../context/DiagnosisContext';
 import { copyDiagnosisFile } from '../services/diagnosisStorage';
-import getExtensionFromFile from '../utils/getFileExtision';
 
-export default function AudioAnalysisScreen({ colors, onImage, onComplete }) {
+export default function AudioAnalysisScreen({
+  colors,
+  onImage,
+  onComplete,
+  onBack,
+}) {
   const [isRecording, setIsRecording] = useState(false);
 
   const [analyzing, setAnalyzing] = useState(false);
@@ -100,11 +104,8 @@ export default function AudioAnalysisScreen({ colors, onImage, onComplete }) {
       console.log('FINAL AUDIO RESULT:', result);
 
       if (!diagnosis?.id) {
-  throw new Error(
-    'No active diagnosis ID.',
-  );
-}
-
+        throw new Error('No active diagnosis ID.');
+      }
 
       // Copy recording into the current diagnosis folder
       const storedAudio = await copyDiagnosisFile(
@@ -224,6 +225,19 @@ export default function AudioAnalysisScreen({ colors, onImage, onComplete }) {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
+      <Pressable
+        onPress={onBack}
+        style={[
+          styles.backButton,
+          {
+            marginTop: -30,
+            marginBottom: 10,
+          },
+        ]}
+      >
+        <Text style={[styles.backText, { color: colors.primary }]}>‹ Back</Text>
+      </Pressable>
+
       <View
         style={[
           styles.recordCard,

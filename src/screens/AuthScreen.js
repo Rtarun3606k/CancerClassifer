@@ -7,57 +7,80 @@ import {
   Text,
   TextInput,
   View,
+  Image,
+  ScrollView,
 } from 'react-native';
 
 import {
   authenticateWithDevice,
   canUseDeviceAuthentication,
+  hasPassword,
+  setPassword,
+  verifyPassword,
 } from '../services/authService';
 
 export default function AuthScreen({ colors, onAuthenticated }) {
-  const [checking, setChecking] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [deviceAuthAvailable, setDeviceAuthAvailable] = useState(false);
 
-  const [authenticating, setAuthenticating] = useState(false);
+  const [passwordExists, setPasswordExists] = useState(false);
 
-  const [passwordMode, setPasswordMode] = useState(false);
+  const [mode, setMode] = useState(null);
 
-  const [password, setPassword] = useState('');
+  const [password, setPasswordValue] = useState('');
+
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [busy, setBusy] = useState(false);
 
   const [error, setError] = useState(null);
 
+  const FORCE_PASSWORD_TEST = false;
+
   useEffect(() => {
-    checkAuthentication();
+    initializeAuth();
   }, []);
 
-  const checkAuthentication = async () => {
+  const initializeAuth = async () => {
     try {
-      setChecking(true);
+      setLoading(true);
       setError(null);
 
-      const available = await canUseDeviceAuthentication();
+      if (FORCE_PASSWORD_TEST) {
+        const exists = await hasPassword();
 
-      setDeviceAuthAvailable(available);
+        setPasswordExists(exists);
+        setMode(exists ? 'password' : 'setup');
 
-      if (available) {
-        await handleDeviceAuthentication();
-      } else {
-        setPasswordMode(true);
+        return;
       }
-    } catch (error) {
-      console.error('AUTH CHECK ERROR:', error);
 
-      setDeviceAuthAvailable(false);
-      setPasswordMode(true);
+      const deviceAvailable = await canUseDeviceAuthentication();
+
+      setDeviceAuthAvailable(deviceAvailable);
+
+      if (deviceAvailable) {
+        setMode('device');
+        await authenticateDevice();
+        return;
+      }
+
+      const exists = await hasPassword();
+
+      setPasswordExists(exists);
+      setMode(exists ? 'password' : 'setup');
+    } catch (error) {
+      console.error('AUTH INITIALIZATION ERROR:', error);
+      setError('Unable to initialize security.');
     } finally {
-      setChecking(false);
+      setLoading(false);
     }
   };
 
-  const handleDeviceAuthentication = async () => {
+  const authenticateDevice = async () => {
     try {
-      setAuthenticating(true);
+      setBusy(true);
       setError(null);
 
       await authenticateWithDevice();
@@ -66,52 +89,92 @@ export default function AuthScreen({ colors, onAuthenticated }) {
     } catch (error) {
       console.error('DEVICE AUTH ERROR:', error);
 
-      /*
-       * Android may return here when the
-       * biometric prompt is cancelled.
-       *
-       * Don't immediately force the user
-       * into the app password if the device
-       * credential option is available.
-       */
-
-      setError('Authentication was cancelled.');
+      setError('Authentication cancelled or failed.');
     } finally {
-      setAuthenticating(false);
+      setBusy(false);
     }
   };
 
-  const handlePasswordLogin = () => {
+  const createPassword = async () => {
     setError(null);
 
-    /*
-     * TEMPORARY:
-     * This is where the secure password
-     * verification will go.
-     *
-     * Do NOT hardcode the final password here.
-     */
-
-    if (!password) {
-      setError('Enter your OSCC password.');
+    if (password.length < 6) {
+      setError('Password must contain at least 6 characters.');
       return;
     }
 
-    setError('Password authentication is not configured yet.');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      await setPassword(password);
+
+      setPasswordExists(true);
+
+      setPasswordValue('');
+      setConfirmPassword('');
+
+      onAuthenticated();
+    } catch (error) {
+      console.error('PASSWORD SETUP ERROR:', error);
+
+      setError(error?.message || 'Unable to create password.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (checking) {
+  const loginWithPassword = async () => {
+    setError(null);
+
+    if (!password) {
+      setError('Enter your password.');
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      const valid = await verifyPassword(password);
+
+      if (!valid) {
+        setError('Incorrect password.');
+        return;
+      }
+
+      setPasswordValue('');
+
+      onAuthenticated();
+    } catch (error) {
+      console.error('PASSWORD LOGIN ERROR:', error);
+
+      setError('Unable to verify password.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
     return (
       <View
         style={[
           styles.container,
           {
-            backgroundColor: colors.onBackground,
+            backgroundColor: colors.background,
           },
         ]}
       >
-        <ActivityIndicator size="large" color={colors.primary} />
+        <Image
+          source={require('../../assets/oralscan.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
 
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text
           style={[
             styles.loadingText,
@@ -127,206 +190,324 @@ export default function AuthScreen({ colors, onAuthenticated }) {
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      {/* Logo */}
-
+    <ScrollView>
       <View
         style={[
-          styles.logo,
+          styles.container,
           {
-            backgroundColor: colors.primaryContainer,
+            backgroundColor: colors.background,
           },
         ]}
       >
-        <Text
+        {/* Logo */}
+
+        <View
           style={[
-            styles.logoText,
+            styles.logo,
             {
-              color: colors.onPrimaryContainer,
+              backgroundColor: colors.background,
             },
           ]}
         >
-          OS
+          <Image
+            source={require('../../assets/oralscan.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* TITLE */}
+
+        <Text
+          style={[
+            styles.title,
+            {
+              color: colors.onBackground,
+            },
+          ]}
+        >
+          OSCC
         </Text>
-      </View>
 
-      <Text
-        style={[
-          styles.title,
-          {
-            color: colors.onBackground,
-          },
-        ]}
-      >
-        Welcome to OSCC
-      </Text>
+        <Text
+          style={[
+            styles.subtitle,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Patient data is protected. Authenticate to continue.
+        </Text>
 
-      <Text
-        style={[
-          styles.subtitle,
-          {
-            color: colors.onSurfaceVariant,
-          },
-        ]}
-      >
-        Authenticate to access patient data and diagnosis history.
-      </Text>
+        {/* DEVICE AUTH */}
 
-      {/* Device authentication */}
+        {mode === 'device' && (
+          <>
+            <Pressable
+              disabled={busy}
+              onPress={authenticateDevice}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed || busy ? 0.8 : 1,
+                },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    {
+                      color: colors.onPrimary,
+                    },
+                  ]}
+                >
+                  Unlock
+                </Text>
+              )}
+            </Pressable>
 
-      {deviceAuthAvailable && !passwordMode && (
-        <>
-          <Pressable
-            onPress={handleDeviceAuthentication}
-            disabled={authenticating}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              {
-                backgroundColor: colors.primary,
-                opacity: pressed || authenticating ? 0.8 : 1,
-              },
-            ]}
-          >
-            {authenticating ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
+            {error && (
               <Text
                 style={[
-                  styles.primaryButtonText,
+                  styles.error,
                   {
-                    color: colors.onPrimary,
+                    color: colors.error,
                   },
                 ]}
               >
-                Unlock with Biometrics
+                {error}
               </Text>
             )}
-          </Pressable>
 
-          <Pressable
-            onPress={() => setPasswordMode(true)}
-            style={styles.linkButton}
-          >
             <Text
               style={[
-                styles.linkText,
+                styles.hint,
                 {
-                  color: colors.primary,
+                  color: colors.onSurfaceVariant,
                 },
               ]}
             >
-              Use OSCC password
+              Use your fingerprint, face, or device PIN, pattern, or password.
             </Text>
-          </Pressable>
-        </>
-      )}
+          </>
+        )}
 
-      {/* Password */}
+        {/* PASSWORD SETUP */}
 
-      {passwordMode && (
-        <View style={styles.passwordSection}>
-          <Text
-            style={[
-              styles.inputLabel,
-              {
-                color: colors.onSurface,
-              },
-            ]}
-          >
-            OSCC Password
-          </Text>
-
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter password"
-            placeholderTextColor={colors.onSurfaceVariant}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.input,
-              {
-                color: colors.onSurface,
-                backgroundColor: colors.surface,
-                borderColor: colors.outlineVariant,
-              },
-            ]}
-          />
-
-          <Pressable
-            onPress={handlePasswordLogin}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              {
-                backgroundColor: colors.primary,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-          >
+        {mode === 'setup' && (
+          <View style={styles.form}>
             <Text
               style={[
-                styles.primaryButtonText,
+                styles.formTitle,
                 {
-                  color: colors.onPrimary,
+                  color: colors.onSurface,
                 },
               ]}
             >
-              Unlock
+              Create OSCC Password
             </Text>
-          </Pressable>
 
-          {deviceAuthAvailable && (
+            <Text
+              style={[
+                styles.formSubtitle,
+                {
+                  color: colors.onSurfaceVariant,
+                },
+              ]}
+            >
+              Your device does not have a usable biometric or screen lock.
+              Create a password to protect patient data.
+            </Text>
+
+            <TextInput
+              value={password}
+              onChangeText={setPasswordValue}
+              placeholder="Password"
+              placeholderTextColor={colors.onSurfaceVariant}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.input,
+                {
+                  color: colors.onSurface,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}
+            />
+
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm password"
+              placeholderTextColor={colors.onSurfaceVariant}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.input,
+                {
+                  color: colors.onSurface,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}
+            />
+
             <Pressable
-              onPress={() => setPasswordMode(false)}
-              style={styles.linkButton}
+              disabled={busy}
+              onPress={createPassword}
+              style={[
+                styles.primaryButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: busy ? 0.7 : 1,
+                },
+              ]}
             >
+              {busy ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    {
+                      color: colors.onPrimary,
+                    },
+                  ]}
+                >
+                  Create Password
+                </Text>
+              )}
+            </Pressable>
+
+            {error && (
               <Text
                 style={[
-                  styles.linkText,
+                  styles.error,
                   {
-                    color: colors.primary,
+                    color: colors.error,
                   },
                 ]}
               >
-                Use device authentication
+                {error}
               </Text>
-            </Pressable>
-          )}
-        </View>
-      )}
+            )}
+          </View>
+        )}
 
-      {error && (
+        {/* PASSWORD LOGIN */}
+
+        {mode === 'password' && (
+          <View style={styles.form}>
+            <Text
+              style={[
+                styles.formTitle,
+                {
+                  color: colors.onSurface,
+                  marginBottom: 10,
+                },
+              ]}
+            >
+              Enter OSCC Password
+            </Text>
+
+            <TextInput
+              value={password}
+              onChangeText={setPasswordValue}
+              placeholder="Password"
+              placeholderTextColor={colors.onSurfaceVariant}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.input,
+                {
+                  color: colors.onSurface,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}
+            />
+
+            <Pressable
+              disabled={busy}
+              onPress={loginWithPassword}
+              style={[
+                styles.primaryButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: busy ? 0.7 : 1,
+                },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    {
+                      color: colors.onPrimary,
+                    },
+                  ]}
+                >
+                  Unlock
+                </Text>
+              )}
+            </Pressable>
+
+            {error && (
+              <Text
+                style={[
+                  styles.error,
+                  {
+                    color: colors.error,
+                  },
+                ]}
+              >
+                {error}
+              </Text>
+            )}
+
+            {deviceAuthAvailable && (
+              <Pressable
+                onPress={() => setMode('device')}
+                style={styles.linkButton}
+              >
+                <Text
+                  style={[
+                    styles.linkText,
+                    {
+                      color: colors.primary,
+                    },
+                  ]}
+                >
+                  Use device authentication
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
         <Text
           style={[
-            styles.error,
+            styles.footer,
             {
-              color: colors.error,
+              color: colors.onSurfaceVariant,
             },
           ]}
         >
-          {error}
+          OSCC • Protected patient data
         </Text>
-      )}
-
-      <Text
-        style={[
-          styles.securityText,
-          {
-            color: colors.onSurfaceVariant,
-          },
-        ]}
-      >
-        Patient data is protected by device authentication.
-      </Text>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -344,7 +525,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
 
   logoText: {
@@ -353,13 +534,12 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '700',
-    textAlign: 'center',
   },
 
   subtitle: {
-    marginTop: 10,
+    marginTop: 8,
     maxWidth: 320,
     fontSize: 14,
     lineHeight: 21,
@@ -371,10 +551,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
+  form: {
+    width: '100%',
+    marginTop: 28,
+  },
+
+  formTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  formSubtitle: {
+    marginTop: 8,
+    marginBottom: 18,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+
+  input: {
+    height: 56,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+
   primaryButton: {
     width: '100%',
     minHeight: 52,
-    marginTop: 30,
+    marginTop: 18,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -386,8 +594,8 @@ const styles = StyleSheet.create({
   },
 
   linkButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    paddingVertical: 18,
   },
 
   linkText: {
@@ -395,35 +603,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  passwordSection: {
-    width: '100%',
-    marginTop: 25,
-  },
-
-  inputLabel: {
-    marginBottom: 8,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  input: {
-    height: 56,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-
   error: {
-    marginTop: 16,
+    marginTop: 14,
     fontSize: 13,
     textAlign: 'center',
   },
 
-  securityText: {
-    position: 'absolute',
-    bottom: 30,
-    fontSize: 11,
+  hint: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
+  },
+
+  footer: {
+    position: 'absolute',
+    bottom: 28,
+    fontSize: 11,
+  },
+
+  logo: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+
+  logoImage: {
+    width: 90,
+    height: 90,
+    resizeMode: 'contain',
   },
 });
