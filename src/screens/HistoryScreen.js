@@ -10,7 +10,9 @@ import {
   TextInput,
 } from 'react-native';
 
-import { getAllDiagnoses } from '../services/database';
+import { getAllDiagnoses, deleteDiagnosis } from '../services/database';
+import { Alert } from 'react-native';
+import { deleteDiagnosisFolder } from '../services/diagnosisStorage';
 
 export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
   const [diagnoses, setDiagnoses] = useState([]);
@@ -45,6 +47,38 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
 
   const reportsCount = diagnoses.filter(item => item.report_path).length;
 
+  const handleDeleteDiagnosis = async diagnosis => {
+    try {
+      if (!diagnosis?.id) {
+        return;
+      }
+
+      await deleteDiagnosisFolder(diagnosis.id);
+      await deleteDiagnosis(diagnosis.id);
+
+      await loadHistory();
+    } catch (error) {
+      console.error('DELETE DIAGNOSIS ERROR:', error);
+    }
+  };
+
+  const confirmDeleteDiagnosis = diagnosis => {
+    Alert.alert(
+      'Delete diagnosis?',
+      'This will permanently delete the diagnosis, image, audio, and report.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteDiagnosis(diagnosis),
+        },
+      ],
+    );
+  };
   const formatDate = value => {
     if (!value) return '';
 
@@ -271,6 +305,7 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
                 colors={colors}
                 formatDate={formatDate}
                 onPress={() => onSelectDiagnosis(item)}
+                onDelete={() => confirmDeleteDiagnosis(item)}
               />
             ))}
           </View>
@@ -315,126 +350,153 @@ function StatCard({ value, label, colors }) {
   );
 }
 
-function DiagnosisCard({ diagnosis, colors, formatDate, onPress }) {
+function DiagnosisCard({ diagnosis, colors, formatDate, onPress, onDelete }) {
   const hasImage = diagnosis.image_selected === 1;
-
   const hasAudio = diagnosis.audio_selected === 1;
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.card,
         {
           backgroundColor: colors.surface,
           borderColor: colors.outlineVariant,
-          opacity: pressed ? 0.8 : 1,
         },
       ]}
     >
-      <View style={styles.cardHeader}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.patientName,
-              {
-                color: colors.onSurface,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {diagnosis.patient_name || 'Unknown patient'}
-          </Text>
+      {/* Main card content */}
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({
+          opacity: pressed ? 0.8 : 1,
+        })}
+      >
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.patientName,
+                {
+                  color: colors.onSurface,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {diagnosis.patient_name || 'Unknown patient'}
+            </Text>
+
+            <Text
+              style={[
+                styles.date,
+                {
+                  color: colors.onSurfaceVariant,
+                },
+              ]}
+            >
+              {formatDate(diagnosis.created_at)}
+              {diagnosis.gender ? ` • ${diagnosis.gender}` : ''}
+            </Text>
+          </View>
 
           <Text
             style={[
-              styles.date,
+              styles.arrow,
               {
                 color: colors.onSurfaceVariant,
               },
             ]}
           >
-            {formatDate(diagnosis.created_at)}
-            {diagnosis.gender ? ` • ${diagnosis.gender}` : ''}
+            ›
           </Text>
         </View>
 
-        <Text
-          style={[
-            styles.arrow,
-            {
-              color: colors.onSurfaceVariant,
-            },
-          ]}
-        >
-          ›
-        </Text>
-      </View>
-
-      <View
-        style={[
-          styles.divider,
-          {
-            backgroundColor: colors.outlineVariant,
-          },
-        ]}
-      />
-
-      {/* Analysis results */}
-
-      <View style={styles.results}>
-        {hasImage && (
-          <Result
-            label="IMAGE"
-            value={diagnosis.image_prediction || 'Completed'}
-            danger={diagnosis.image_prediction === 'CANCER'}
-            colors={colors}
-          />
-        )}
-
-        {hasAudio && (
-          <Result
-            label="VOICE"
-            value={diagnosis.audio_prediction || 'Completed'}
-            danger={diagnosis.audio_prediction === 'Vocal Pathology'}
-            colors={colors}
-          />
-        )}
-      </View>
-
-      {/* Report */}
-
-      {diagnosis.report_path && (
         <View
           style={[
-            styles.reportBadge,
+            styles.divider,
             {
-              backgroundColor: colors.primaryContainer,
+              backgroundColor: colors.outlineVariant,
             },
           ]}
-        >
+        />
+
+        {/* Analysis results */}
+        <View style={styles.results}>
+          {hasImage && (
+            <Result
+              label="IMAGE"
+              value={diagnosis.image_prediction || 'Completed'}
+              danger={diagnosis.image_prediction === 'CANCER'}
+              colors={colors}
+            />
+          )}
+
+          {hasAudio && (
+            <Result
+              label="VOICE"
+              value={diagnosis.audio_prediction || 'Completed'}
+              danger={diagnosis.audio_prediction === 'Vocal Pathology'}
+              colors={colors}
+            />
+          )}
+        </View>
+
+        {/* Report */}
+        {diagnosis.report_path && (
           <View
             style={[
-              styles.dot,
+              styles.reportBadge,
               {
-                backgroundColor: colors.primary,
-              },
-            ]}
-          />
-
-          <Text
-            style={[
-              styles.reportText,
-              {
-                color: colors.onPrimaryContainer,
+                backgroundColor: colors.primaryContainer,
               },
             ]}
           >
-            Report available
-          </Text>
-        </View>
-      )}
-    </Pressable>
+            <View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: colors.primary,
+                },
+              ]}
+            />
+
+            <Text
+              style={[
+                styles.reportText,
+                {
+                  color: colors.onPrimaryContainer,
+                },
+              ]}
+            >
+              Report available
+            </Text>
+          </View>
+        )}
+      </Pressable>
+
+      {/* Delete button */}
+      <Pressable
+        onPress={onDelete}
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.deleteButton,
+          {
+            borderColor: colors.outlineVariant,
+            opacity: pressed ? 0.6 : 1,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.deleteButtonText,
+            {
+              color: colors.error,
+            },
+          ]}
+        >
+          Delete
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -668,4 +730,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 12,
   },
+  deleteButton: {
+  marginTop: 14,
+  paddingVertical: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderTopWidth: 1,
+},
+
+deleteButtonText: {
+  fontSize: 14,
+  fontWeight: '600',
+},
 });

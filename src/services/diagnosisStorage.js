@@ -49,3 +49,47 @@ export async function copyDiagnosisFile(sourcePath, diagnosisId, fileName) {
 
   return destination;
 }
+
+
+
+export async function deleteDiagnosisFolder(diagnosisId) {
+  if (!diagnosisId) {
+    throw new Error('Diagnosis ID is missing.');
+  }
+
+  const folder = `${ROOT}/${diagnosisId}`;
+
+  const exists = await RNFS.exists(folder);
+
+  if (!exists) {
+    return;
+  }
+
+  const items = await RNFS.readDir(folder);
+
+  for (const item of items) {
+    if (item.isDirectory()) {
+      await deleteDirectory(item.path);
+    } else {
+      await RNFS.unlink(item.path);
+    }
+  }
+
+  await RNFS.unlink(folder);
+
+  console.log('Diagnosis folder deleted:', folder);
+}
+
+async function deleteDirectory(path) {
+  const items = await RNFS.readDir(path);
+
+  for (const item of items) {
+    if (item.isDirectory()) {
+      await deleteDirectory(item.path);
+    } else {
+      await RNFS.unlink(item.path);
+    }
+  }
+
+  await RNFS.unlink(path);
+}
