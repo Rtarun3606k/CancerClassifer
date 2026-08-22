@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
+  TextInput,
 } from 'react-native';
 
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -31,6 +32,8 @@ export default function ImageAnalysisScreen({
   const [result, setResult] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  const [doctorAssessment, setDoctorAssessment] = useState('');
+  const [doctorRemarks, setDoctorRemarks] = useState('');
 
   const { diagnosis, setImageResult } = useDiagnosis();
 
@@ -81,6 +84,8 @@ export default function ImageAnalysisScreen({
       setImageResult({
         uri: storedImage,
         result: prediction,
+        doctorAssessment,
+        doctorRemarks,
       });
     } catch (error) {
       console.error('Classification error:', error);
@@ -92,6 +97,22 @@ export default function ImageAnalysisScreen({
       setLoading(false);
     }
   };
+
+  const handleContinue = () => {
+    if (!result || result.error) {
+      return;
+    }
+
+    setImageResult({
+      uri: diagnosis?.image?.uri || imageUri,
+      result,
+      doctorAssessment,
+      doctorRemarks,
+    });
+
+    onComplete();
+  };
+
   const cancerProbability = result?.probabilities?.CANCER ?? 0;
 
   const nonCancerProbability = result?.probabilities?.['NON CANCER'] ?? 0;
@@ -109,7 +130,7 @@ export default function ImageAnalysisScreen({
           styles.backButton,
           {
             marginTop: -30,
-            marginBottom:10,
+            marginBottom: 10,
           },
         ]}
       >
@@ -419,9 +440,128 @@ export default function ImageAnalysisScreen({
         </View>
       )}
 
+      <View
+        style={[
+          styles.doctorSection,
+          {
+            borderTopColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.doctorSectionTitle,
+            {
+              color: colors.onSurface,
+            },
+          ]}
+        >
+          DOCTOR ASSESSMENT
+        </Text>
+
+        <Text
+          style={[
+            styles.doctorLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Assessment
+        </Text>
+
+        <View style={styles.assessmentRow}>
+          <Pressable
+            onPress={() => setDoctorAssessment('Cancer')}
+            style={[
+              styles.assessmentButton,
+              {
+                backgroundColor:
+                  doctorAssessment === 'Cancer'
+                    ? colors.primary
+                    : colors.surfaceContainerHighest,
+                borderColor:
+                  doctorAssessment === 'Cancer'
+                    ? colors.primary
+                    : colors.outlineVariant,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color:
+                  doctorAssessment === 'Cancer'
+                    ? colors.onPrimary
+                    : colors.onSurface,
+                fontWeight: '600',
+              }}
+            >
+              Cancer
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setDoctorAssessment('Non Cancer')}
+            style={[
+              styles.assessmentButton,
+              {
+                backgroundColor:
+                  doctorAssessment === 'Non Cancer'
+                    ? colors.primary
+                    : colors.surfaceContainerHighest,
+                borderColor:
+                  doctorAssessment === 'Non Cancer'
+                    ? colors.primary
+                    : colors.outlineVariant,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color:
+                  doctorAssessment === 'Non Cancer'
+                    ? colors.onPrimary
+                    : colors.onSurface,
+                fontWeight: '600',
+              }}
+            >
+              Non Cancer
+            </Text>
+          </Pressable>
+        </View>
+
+        <Text
+          style={[
+            styles.doctorLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Remarks
+        </Text>
+
+        <TextInput
+          value={doctorRemarks}
+          onChangeText={setDoctorRemarks}
+          placeholder="Optional remarks"
+          placeholderTextColor={colors.onSurfaceVariant}
+          multiline
+          textAlignVertical="top"
+          style={[
+            styles.doctorRemarks,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        />
+      </View>
+
       {/* Switch to audio */}
       <Pressable
-        onPress={onComplete}
+        onPress={handleContinue}
         style={[
           styles.secondaryButton,
           {
@@ -806,4 +946,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  doctorSection: {
+  marginTop: 24,
+  paddingTop: 22,
+  borderTopWidth: 1,
+},
+
+doctorSectionTitle: {
+  fontSize: 12,
+  fontWeight: '800',
+  letterSpacing: 1,
+  marginBottom: 16,
+},
+
+doctorLabel: {
+  fontSize: 13,
+  fontWeight: '600',
+  marginBottom: 8,
+},
+
+assessmentRow: {
+  flexDirection: 'row',
+  gap: 10,
+  marginBottom: 18,
+},
+
+assessmentButton: {
+  flex: 1,
+  minHeight: 46,
+  borderRadius: 14,
+  borderWidth: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+doctorRemarks: {
+  minHeight: 90,
+  borderWidth: 1,
+  borderRadius: 14,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  fontSize: 14,
+},
 });

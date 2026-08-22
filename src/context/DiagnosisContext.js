@@ -1,8 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 import { createDiagnosisId } from '../utils/diagnosisId';
 
@@ -22,15 +18,23 @@ function createEmptyDiagnosis() {
       state: '',
       city: '',
     },
+    hospitalDetails: {
+      doctorName: '',
+      hospitalName: '',
+    },
 
     image: {
       uri: null,
       result: null,
+      doctorAssessment: '',
+      doctorRemarks: '',
     },
 
     audio: {
       path: null,
       result: null,
+      doctorAssessment: '',
+      doctorRemarks: '',
     },
 
     selectedAnalyses: {
@@ -43,9 +47,7 @@ function createEmptyDiagnosis() {
 }
 
 export function DiagnosisProvider({ children }) {
-  const [diagnosis, setDiagnosis] = useState(
-    createEmptyDiagnosis(),
-  );
+  const [diagnosis, setDiagnosis] = useState(createEmptyDiagnosis());
 
   const updatePatient = updates => {
     setDiagnosis(prev => ({
@@ -69,24 +71,44 @@ export function DiagnosisProvider({ children }) {
     }));
   };
 
-  const setImageResult = ({ uri, result }) => {
+  const setHospitalDetails = ({ doctorName, hospitalName }) => {
+    setDiagnosis(prev => ({
+      ...prev,
+
+      hospitalDetails: {
+        hospitalName,
+        doctorName,
+      },
+    }));
+  };
+
+  const setImageResult = ({ uri, result, doctorAssessment, doctorRemarks }) => {
     setDiagnosis(prev => ({
       ...prev,
 
       image: {
         uri,
         result,
+        doctorAssessment,
+        doctorRemarks,
       },
     }));
   };
 
-  const setAudioResult = ({ path, result }) => {
+  const setAudioResult = ({
+    path,
+    result,
+    doctorAssessment,
+    doctorRemarks,
+  }) => {
     setDiagnosis(prev => ({
       ...prev,
 
       audio: {
         path,
         result,
+        doctorAssessment,
+        doctorRemarks,
       },
     }));
   };
@@ -105,10 +127,7 @@ export function DiagnosisProvider({ children }) {
   const startNewDiagnosis = () => {
     const newDiagnosis = createEmptyDiagnosis();
 
-    console.log(
-      'STARTING NEW DIAGNOSIS:',
-      newDiagnosis.id,
-    );
+    console.log('STARTING NEW DIAGNOSIS:', newDiagnosis.id);
 
     setDiagnosis(newDiagnosis);
 
@@ -133,6 +152,8 @@ export function DiagnosisProvider({ children }) {
         setReportPath,
 
         clearDiagnosis,
+
+        setHospitalDetails,
       }}
     >
       {children}
@@ -144,9 +165,7 @@ export function useDiagnosis() {
   const context = useContext(DiagnosisContext);
 
   if (!context) {
-    throw new Error(
-      'useDiagnosis must be used inside DiagnosisProvider',
-    );
+    throw new Error('useDiagnosis must be used inside DiagnosisProvider');
   }
 
   return context;

@@ -112,9 +112,14 @@ class AuthModule(
                             errorCode: Int,
                             errString: CharSequence
                         ) {
+                            android.util.Log.e(
+                                "OSCC_AUTH",
+                                "Authentication error: code=$errorCode message=$errString"
+                            )
+
                             promise.reject(
                                 "AUTH_ERROR",
-                                "$errorCode: $errString"
+                                "code=$errorCode message=$errString"
                             )
                         }
 
@@ -126,7 +131,7 @@ class AuthModule(
 
             val builder =
                 BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("")
+                    .setTitle("OSCC")
                     .setSubtitle(
                         "Unlock to access patient data"
                     )

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   PermissionsAndroid,
   Platform,
+  TextInput,
 } from 'react-native';
 
 import { startRecording, stopRecording } from '../ml/audio/audioRecorder';
@@ -38,6 +39,8 @@ export default function AudioAnalysisScreen({
   const [audioError, setAudioError] = useState(null);
 
   const [audioResult, setAudioResultLocal] = useState(null);
+  const [doctorAssessment, setDoctorAssessment] = useState('');
+  const [doctorRemarks, setDoctorRemarks] = useState('');
 
   const { diagnosis, setAudioResult } = useDiagnosis();
 
@@ -120,6 +123,8 @@ export default function AudioAnalysisScreen({
       setAudioResult({
         path: storedAudio,
         result,
+        doctorAssessment,
+        doctorRemarks,
       });
 
       // Local state for this screen
@@ -198,8 +203,10 @@ export default function AudioAnalysisScreen({
 
       // Global diagnosis state
       setAudioResult({
-        path: audioPath,
+        path: storedAudio,
         result,
+        doctorAssessment,
+        doctorRemarks,
       });
     } catch (error) {
       if (error?.code === 'OPERATION_CANCELED') {
@@ -212,6 +219,21 @@ export default function AudioAnalysisScreen({
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const handleContinue = () => {
+    if (!audioResult) {
+      return;
+    }
+
+    setAudioResult({
+      path: diagnosis?.audio?.path || null,
+      result: audioResult,
+      doctorAssessment,
+      doctorRemarks,
+    });
+
+    onComplete();
   };
 
   const pathology = audioResult?.pathologyProbability ?? 0;
@@ -508,9 +530,128 @@ export default function AudioAnalysisScreen({
         </View>
       )}
 
+      <View
+        style={[
+          styles.doctorSection,
+          {
+            borderTopColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.doctorSectionTitle,
+            {
+              color: colors.onSurface,
+            },
+          ]}
+        >
+          DOCTOR ASSESSMENT
+        </Text>
+
+        <Text
+          style={[
+            styles.doctorLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Assessment
+        </Text>
+
+        <View style={styles.assessmentRow}>
+          <Pressable
+            onPress={() => setDoctorAssessment('Normal')}
+            style={[
+              styles.assessmentButton,
+              {
+                backgroundColor:
+                  doctorAssessment === 'Normal'
+                    ? colors.primary
+                    : colors.surfaceContainerHighest,
+                borderColor:
+                  doctorAssessment === 'Normal'
+                    ? colors.primary
+                    : colors.outlineVariant,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color:
+                  doctorAssessment === 'Normal'
+                    ? colors.onPrimary
+                    : colors.onSurface,
+                fontWeight: '600',
+              }}
+            >
+              Normal
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setDoctorAssessment('Vocal Pathology')}
+            style={[
+              styles.assessmentButton,
+              {
+                backgroundColor:
+                  doctorAssessment === 'Vocal Pathology'
+                    ? colors.primary
+                    : colors.surfaceContainerHighest,
+                borderColor:
+                  doctorAssessment === 'Vocal Pathology'
+                    ? colors.primary
+                    : colors.outlineVariant,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color:
+                  doctorAssessment === 'Vocal Pathology'
+                    ? colors.onPrimary
+                    : colors.onSurface,
+                fontWeight: '600',
+              }}
+            >
+              Vocal Pathology
+            </Text>
+          </Pressable>
+        </View>
+
+        <Text
+          style={[
+            styles.doctorLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Remarks
+        </Text>
+
+        <TextInput
+          value={doctorRemarks}
+          onChangeText={setDoctorRemarks}
+          placeholder="Optional remarks"
+          placeholderTextColor={colors.onSurfaceVariant}
+          multiline
+          textAlignVertical="top"
+          style={[
+            styles.doctorRemarks,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        />
+      </View>
+
       {audioResult && !analyzing && (
         <Pressable
-          onPress={onComplete}
+          onPress={handleContinue}
           style={[
             styles.secondaryButton,
             {
@@ -690,5 +831,47 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     lineHeight: 19,
+  },
+  doctorSection: {
+    marginTop: 24,
+    paddingTop: 22,
+    borderTopWidth: 1,
+  },
+
+  doctorSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+
+  doctorLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+
+  assessmentRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+  },
+
+  assessmentButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  doctorRemarks: {
+    minHeight: 90,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
   },
 });

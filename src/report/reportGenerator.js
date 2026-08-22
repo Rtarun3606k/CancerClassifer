@@ -28,18 +28,13 @@ function calculateAge(dateOfBirth) {
   const dob = new Date(dateOfBirth);
   const today = new Date();
 
-  let age =
-    today.getFullYear() -
-    dob.getFullYear();
+  let age = today.getFullYear() - dob.getFullYear();
 
-  const monthDifference =
-    today.getMonth() -
-    dob.getMonth();
+  const monthDifference = today.getMonth() - dob.getMonth();
 
   if (
     monthDifference < 0 ||
-    (monthDifference === 0 &&
-      today.getDate() < dob.getDate())
+    (monthDifference === 0 && today.getDate() < dob.getDate())
   ) {
     age--;
   }
@@ -49,9 +44,7 @@ function calculateAge(dateOfBirth) {
 
 async function imageToBase64(uri) {
   if (!uri) {
-    throw new Error(
-      'Image URI is missing.',
-    );
+    throw new Error('Image URI is missing.');
   }
 
   let path = uri;
@@ -69,36 +62,24 @@ async function imageToBase64(uri) {
   const exists = await RNFS.exists(path);
 
   if (!exists) {
-    throw new Error(
-      `Image file does not exist: ${path}`,
-    );
+    throw new Error(`Image file does not exist: ${path}`);
   }
 
-  const base64 =
-    await RNFS.readFile(
-      path,
-      'base64',
-    );
+  const base64 = await RNFS.readFile(path, 'base64');
 
   return `data:image/jpeg;base64,${base64}`;
 }
 
 async function logoToBase64() {
   if (!ReportAssets) {
-    throw new Error(
-      'ReportAssets native module is not available.',
-    );
+    throw new Error('ReportAssets native module is not available.');
   }
 
   return await ReportAssets.getLogo();
 }
 
-function probabilityBar(
-  label,
-  value,
-) {
-  const percentage =
-    ((value ?? 0) * 100).toFixed(1);
+function probabilityBar(label, value) {
+  const percentage = ((value ?? 0) * 100).toFixed(1);
 
   return `
     <div class="bar-row">
@@ -129,27 +110,15 @@ function createImageSection(image) {
 
   const result = image.result;
 
-  const cancerProbability =
-    result.probabilities?.CANCER ?? 0;
+  const cancerProbability = result.probabilities?.CANCER ?? 0;
 
-  const nonCancerProbability =
-    result.probabilities?.[
-      'NON CANCER'
-    ] ?? 0;
+  const nonCancerProbability = result.probabilities?.['NON CANCER'] ?? 0;
 
-  const confidence =
-    (
-      (result.probability ?? 0) *
-      100
-    ).toFixed(1);
+  const confidence = ((result.probability ?? 0) * 100).toFixed(1);
 
-  const isCancer =
-    result.classIndex === 0;
+  const isCancer = result.classIndex === 0;
 
-  const predictionColor =
-    isCancer
-      ? '#B3261E'
-      : '#146C2E';
+  const predictionColor = isCancer ? '#B3261E' : '#146C2E';
 
   return `
     <div class="section">
@@ -191,15 +160,45 @@ function createImageSection(image) {
           </strong>
         </div>
 
-        ${probabilityBar(
-          'CANCER',
-          cancerProbability,
-        )}
+        ${probabilityBar('CANCER', cancerProbability)}
 
-        ${probabilityBar(
-          'NON CANCER',
-          nonCancerProbability,
-        )}
+        ${probabilityBar('NON CANCER', nonCancerProbability)}
+
+${
+  image.doctorAssessment || image.doctorRemarks
+    ? `
+      <div class="doctor-assessment">
+
+        <div class="doctor-assessment-title">
+          DOCTOR ASSESSMENT
+        </div>
+
+        <div class="patient-row">
+          <span class="label">
+            Assessment
+          </span>
+
+          <span class="value">
+            ${image.doctorAssessment || 'Not provided'}
+          </span>
+        </div>
+
+        <div class="remarks">
+
+          <div class="remarks-label">
+            Remarks
+          </div>
+
+          <div class="remarks-value">
+            ${image.doctorRemarks || 'No remarks provided'}
+          </div>
+
+        </div>
+
+      </div>
+    `
+    : ''
+}
 
       </div>
 
@@ -266,30 +265,17 @@ function createAudioSection(audio) {
 
   const result = audio.result;
 
-  const pathologyProbability =
-    result.pathologyProbability ?? 0;
+  const pathologyProbability = result.pathologyProbability ?? 0;
 
-  const normalProbability =
-    result.normalProbability ?? 0;
+  const normalProbability = result.normalProbability ?? 0;
 
-  const confidence =
-    (
-      (result.confidence ?? 0) *
-      100
-    ).toFixed(1);
+  const confidence = ((result.confidence ?? 0) * 100).toFixed(1);
 
-  const prediction =
-    result.prediction ??
-    'Unknown';
+  const prediction = result.prediction ?? 'Unknown';
 
-  const isPathology =
-    prediction ===
-    'Vocal Pathology';
+  const isPathology = prediction === 'Vocal Pathology';
 
-  const predictionColor =
-    isPathology
-      ? '#B3261E'
-      : '#146C2E';
+  const predictionColor = isPathology ? '#B3261E' : '#146C2E';
 
   return `
     <div class="section">
@@ -318,15 +304,45 @@ function createAudioSection(audio) {
           </strong>
         </div>
 
-        ${probabilityBar(
-          'NORMAL',
-          normalProbability,
-        )}
+        ${probabilityBar('NORMAL', normalProbability)}
 
-        ${probabilityBar(
-          'VOCAL PATHOLOGY',
-          pathologyProbability,
-        )}
+        ${probabilityBar('VOCAL PATHOLOGY', pathologyProbability)}
+
+${
+  audio.doctorAssessment || audio.doctorRemarks
+    ? `
+      <div class="doctor-assessment">
+
+        <div class="doctor-assessment-title">
+          DOCTOR ASSESSMENT
+        </div>
+
+        <div class="patient-row">
+          <span class="label">
+            Assessment
+          </span>
+
+          <span class="value">
+            ${audio.doctorAssessment || 'Not provided'}
+          </span>
+        </div>
+
+        <div class="remarks">
+
+          <div class="remarks-label">
+            Remarks
+          </div>
+
+          <div class="remarks-value">
+            ${audio.doctorRemarks || 'No remarks provided'}
+          </div>
+
+        </div>
+
+      </div>
+    `
+    : ''
+}
 
       </div>
 
@@ -388,61 +404,44 @@ function createAudioSection(audio) {
 
 export async function generateReport({
   patient,
+  hospitalDetails,
   image,
   audio,
   selectedAnalyses,
 }) {
   if (!patient) {
-    throw new Error(
-      'Patient information is missing.',
-    );
+    throw new Error('Patient information is missing.');
   }
 
-  const hasImage =
-    !!selectedAnalyses?.image &&
-    !!image?.result;
+  const hasImage = !!selectedAnalyses?.image && !!image?.result;
 
-  const hasAudio =
-    !!selectedAnalyses?.audio &&
-    !!audio?.result;
+  const hasAudio = !!selectedAnalyses?.audio && !!audio?.result;
 
   if (!hasImage && !hasAudio) {
-    throw new Error(
-      'No valid analysis results available.',
-    );
+    throw new Error('No valid analysis results available.');
   }
 
   const now = new Date();
 
-  const age = calculateAge(
-    patient.dateOfBirth,
-  );
+  const age = calculateAge(patient.dateOfBirth);
 
   // Prepare image only when required.
   let imageBase64 = null;
 
   if (hasImage && image?.uri) {
-    imageBase64 =
-      await imageToBase64(
-        image.uri,
-      );
+    imageBase64 = await imageToBase64(image.uri);
   }
 
-  const logoBase64 =
-    await logoToBase64();
+  const logoBase64 = await logoToBase64();
 
-  const imageSection =
-    hasImage
-      ? createImageSection({
-          ...image,
-          base64: imageBase64,
-        })
-      : '';
+  const imageSection = hasImage
+    ? createImageSection({
+        ...image,
+        base64: imageBase64,
+      })
+    : '';
 
-  const audioSection =
-    hasAudio
-      ? createAudioSection(audio)
-      : '';
+  const audioSection = hasAudio ? createAudioSection(audio) : '';
 
   const html = `
 <!DOCTYPE html>
@@ -454,6 +453,51 @@ export async function generateReport({
 <meta charset="UTF-8">
 
 <style>
+
+.clinician-details {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dddddd;
+  border-radius: 10px;
+}
+
+.clinician-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  margin-bottom: 14px;
+}
+
+.doctor-assessment {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #dddddd;
+}
+
+.doctor-assessment-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  margin-bottom: 12px;
+}
+
+.remarks {
+  margin-top: 12px;
+}
+
+.remarks-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.remarks-value {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px;
+  background: #f7f7f7;
+  border-radius: 6px;
+}
 
 @page {
   size: A4;
@@ -785,11 +829,7 @@ body {
       </span>
 
       <span class="value">
-        ${
-          age !== null
-            ? `${age} years`
-            : 'Not provided'
-        }
+        ${age !== null ? `${age} years` : 'Not provided'}
       </span>
     </div>
 
@@ -799,10 +839,7 @@ body {
       </span>
 
       <span class="value">
-        ${
-          patient.gender ||
-          'Not provided'
-        }
+        ${patient.gender || 'Not provided'}
       </span>
     </div>
 
@@ -813,22 +850,49 @@ body {
 
       <span class="value">
         ${
-          [
-            patient.city,
-            patient.state,
-            patient.country,
-          ]
+          [patient.city, patient.state, patient.country]
             .filter(Boolean)
-            .join(', ') ||
-          'Not provided'
+            .join(', ') || 'Not provided'
         }
       </span>
     </div>
+
+
 
   </div>
 
 
   <!-- META -->
+
+<!-- CLINICIAN -->
+
+<div class="clinician-details">
+
+  <div class="clinician-title">
+    CLINIC / DOCTOR DETAILS
+  </div>
+
+  <div class="patient-row">
+    <span class="label">
+      Doctor Name
+    </span>
+
+    <span class="value">
+      ${hospitalDetails?.doctorName || 'Not provided'}
+    </span>
+  </div>
+
+  <div class="patient-row">
+    <span class="label">
+      Hospital / Clinic
+    </span>
+
+    <span class="value">
+      ${hospitalDetails?.hospitalName || 'Not provided'}
+    </span>
+  </div>
+
+</div>
 
   <div class="meta">
 
@@ -850,18 +914,9 @@ body {
       <span class="meta-label">
         Analyses:
       </span>
-      ${
-        [
-          hasImage
-            ? 'Image'
-            : null,
-          hasAudio
-            ? 'Voice'
-            : null,
-        ]
-          .filter(Boolean)
-          .join(' + ')
-      }
+      ${[hasImage ? 'Image' : null, hasAudio ? 'Voice' : null]
+        .filter(Boolean)
+        .join(' + ')}
     </div>
 
     <div class="meta-row">
@@ -924,15 +979,12 @@ body {
 
   const file = await generatePDF({
     html,
-    fileName:
-      `OralScan_Diagnosis_Report_${now.getTime()}`,
+    fileName: `OralScan_Diagnosis_Report_${now.getTime()}`,
     directory: 'Documents',
   });
 
   if (!file.filePath) {
-    throw new Error(
-      'Failed to generate PDF.',
-    );
+    throw new Error('Failed to generate PDF.');
   }
 
   return file.filePath;
@@ -940,20 +992,13 @@ body {
 
 export async function shareReport(filePath) {
   if (!filePath) {
-    throw new Error(
-      'No report file available.',
-    );
+    throw new Error('No report file available.');
   }
 
-  console.log(
-    'SHARING PDF PATH:',
-    filePath,
-  );
+  console.log('SHARING PDF PATH:', filePath);
 
   if (!SharePdf) {
-    throw new Error(
-      'SharePdf native module is not available.',
-    );
+    throw new Error('SharePdf native module is not available.');
   }
 
   await SharePdf.share(filePath);

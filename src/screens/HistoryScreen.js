@@ -13,12 +13,14 @@ import {
 import { getAllDiagnoses, deleteDiagnosis } from '../services/database';
 import { Alert } from 'react-native';
 import { deleteDiagnosisFolder } from '../services/diagnosisStorage';
+import { exportAllData } from '../services/exportService';
 
 export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
   const [diagnoses, setDiagnoses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const filterIndicators = [
     { key: 'all', label: 'All' },
@@ -131,6 +133,35 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
     }
   });
 
+  const handleExport = async () => {
+    try {
+      if (!diagnoses.length) {
+        Alert.alert('Nothing to export', 'There are no diagnoses available.');
+        return;
+      }
+
+      setExporting(true);
+
+      const path = await exportAllData();
+
+      console.log('EXPORT COMPLETE:', path);
+
+      Alert.alert(
+        'Export complete',
+        'All OSCC diagnosis data has been exported to your Downloads folder.',
+      );
+    } catch (error) {
+      console.error('EXPORT ERROR:', error);
+
+      Alert.alert(
+        'Export failed',
+        error?.message || 'Unable to export diagnosis data.',
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <View
       style={[
@@ -189,6 +220,34 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
         >
           Previous screening sessions
         </Text>
+
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting}
+          style={[
+            styles.exportButton,
+            {
+              backgroundColor: colors.primary,
+              opacity: exporting ? 0.6 : 1,
+            },
+          ]}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color={colors.onPrimary} />
+          ) : (
+            <Text
+              style={[
+                styles.exportButtonText,
+                {
+                  color: colors.onPrimary,
+                },
+              ]}
+            >
+              Export Data
+            </Text>
+          )}
+        </Pressable>
+
         <View style={styles.filterContainer}>
           {filterIndicators.map(item => {
             const active = filter === item.key;
@@ -731,15 +790,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   deleteButton: {
-  marginTop: 14,
-  paddingVertical: 10,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderTopWidth: 1,
-},
+    marginTop: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
 
-deleteButtonText: {
-  fontSize: 14,
-  fontWeight: '600',
-},
+  deleteButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exportButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+
+  exportButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

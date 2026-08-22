@@ -31,26 +31,15 @@ export default function DiagnosisDetailsScreen({
     try {
       setLoading(true);
 
-      console.log(
-        'LOADING DIAGNOSIS:',
-        diagnosisId,
-      );
+      console.log('LOADING DIAGNOSIS:', diagnosisId);
 
-      const data = await getDiagnosisById(
-        diagnosisId,
-      );
+      const data = await getDiagnosisById(diagnosisId);
 
-      console.log(
-        'DIAGNOSIS DETAILS:',
-        data,
-      );
+      console.log('DIAGNOSIS DETAILS:', data);
 
       setDiagnosis(data);
     } catch (error) {
-      console.error(
-        'LOAD DIAGNOSIS ERROR:',
-        error,
-      );
+      console.error('LOAD DIAGNOSIS ERROR:', error);
     } finally {
       setLoading(false);
     }
@@ -62,19 +51,11 @@ export default function DiagnosisDetailsScreen({
     }
 
     try {
-      console.log(
-        'OPENING REPORT:',
-        diagnosis.report_path,
-      );
+      console.log('OPENING REPORT:', diagnosis.report_path);
 
-      await SharePdf.open(
-        diagnosis.report_path,
-      );
+      await SharePdf.open(diagnosis.report_path);
     } catch (error) {
-      console.error(
-        'OPEN REPORT ERROR:',
-        error,
-      );
+      console.error('OPEN REPORT ERROR:', error);
     }
   };
 
@@ -84,19 +65,11 @@ export default function DiagnosisDetailsScreen({
     }
 
     try {
-      console.log(
-        'SHARING REPORT:',
-        diagnosis.report_path,
-      );
+      console.log('SHARING REPORT:', diagnosis.report_path);
 
-      await SharePdf.share(
-        diagnosis.report_path,
-      );
+      await SharePdf.share(diagnosis.report_path);
     } catch (error) {
-      console.error(
-        'SHARE REPORT ERROR:',
-        error,
-      );
+      console.error('SHARE REPORT ERROR:', error);
     }
   };
 
@@ -106,19 +79,11 @@ export default function DiagnosisDetailsScreen({
     }
 
     try {
-      console.log(
-        'OPENING AUDIO:',
-        diagnosis.audio_path,
-      );
+      console.log('OPENING AUDIO:', diagnosis.audio_path);
 
-      await SharePdf.openAudio(
-        diagnosis.audio_path,
-      );
+      await SharePdf.openAudio(diagnosis.audio_path);
     } catch (error) {
-      console.error(
-        'OPEN AUDIO ERROR:',
-        error,
-      );
+      console.error('OPEN AUDIO ERROR:', error);
     }
   };
 
@@ -128,14 +93,11 @@ export default function DiagnosisDetailsScreen({
     }
 
     try {
-      return new Date(value).toLocaleDateString(
-        'en-IN',
-        {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        },
-      );
+      return new Date(value).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
     } catch {
       return value;
     }
@@ -151,10 +113,7 @@ export default function DiagnosisDetailsScreen({
           },
         ]}
       >
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-        />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -199,20 +158,13 @@ export default function DiagnosisDetailsScreen({
     );
   }
 
-  const hasImage =
-    diagnosis.image_selected === 1 &&
-    !!diagnosis.image_path;
+  const hasImage = diagnosis.image_selected === 1 && !!diagnosis.image_path;
 
-  const hasAudio =
-    diagnosis.audio_selected === 1 &&
-    !!diagnosis.audio_path;
+  const hasAudio = diagnosis.audio_selected === 1 && !!diagnosis.audio_path;
 
-  const imageIsCancer =
-    diagnosis.image_prediction === 'CANCER';
+  const imageIsCancer = diagnosis.image_prediction === 'CANCER';
 
-  const audioIsPathology =
-    diagnosis.audio_prediction ===
-    'Vocal Pathology';
+  const audioIsPathology = diagnosis.audio_prediction === 'Vocal Pathology';
 
   return (
     <ScrollView
@@ -227,10 +179,7 @@ export default function DiagnosisDetailsScreen({
     >
       {/* BACK */}
 
-      <Pressable
-        onPress={onBack}
-        style={styles.backButton}
-      >
+      <Pressable onPress={onBack} style={styles.backButton}>
         <Text
           style={[
             styles.backArrow,
@@ -291,10 +240,7 @@ export default function DiagnosisDetailsScreen({
 
       {/* PATIENT */}
 
-      <SectionTitle
-        title="PATIENT"
-        colors={colors}
-      />
+      <SectionTitle title="PATIENT" colors={colors} />
 
       <View
         style={[
@@ -305,11 +251,7 @@ export default function DiagnosisDetailsScreen({
           },
         ]}
       >
-        <InfoRow
-          label="Name"
-          value={diagnosis.patient_name}
-          colors={colors}
-        />
+        <InfoRow label="Name" value={diagnosis.patient_name} colors={colors} />
 
         <InfoRow
           label="Date of birth"
@@ -317,11 +259,7 @@ export default function DiagnosisDetailsScreen({
           colors={colors}
         />
 
-        <InfoRow
-          label="Gender"
-          value={diagnosis.gender}
-          colors={colors}
-        />
+        <InfoRow label="Gender" value={diagnosis.gender} colors={colors} />
 
         <InfoRow
           label="Age"
@@ -335,22 +273,48 @@ export default function DiagnosisDetailsScreen({
         />
       </View>
 
+      {/* DOctor and hospital */}
+
+      <SectionTitle title="DOCTOR & HOSPITAL DETAILS" colors={colors} />
+
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <InfoRow
+          label="Doctor Name"
+          value={diagnosis.doctor_name}
+          colors={colors}
+        />
+        <InfoRow
+          label="Hospital / Clinic"
+          value={
+            diagnosis.hospital_name != null
+              ? `${diagnosis.hospital_name}`
+              : '—'
+          }
+          colors={colors}
+          last
+        />
+      </View>
+
       {/* ORIGINAL IMAGE */}
 
       {hasImage && (
         <>
-          <SectionTitle
-            title="ORIGINAL IMAGE"
-            colors={colors}
-          />
+          <SectionTitle title="ORIGINAL IMAGE" colors={colors} />
 
           <View
             style={[
               styles.imageCard,
               {
                 backgroundColor: colors.surface,
-                borderColor:
-                  colors.outlineVariant,
+                borderColor: colors.outlineVariant,
               },
             ]}
           >
@@ -367,10 +331,7 @@ export default function DiagnosisDetailsScreen({
 
       {/* IMAGE ANALYSIS */}
 
-      <SectionTitle
-        title="IMAGE ANALYSIS"
-        colors={colors}
-      />
+      <SectionTitle title="IMAGE ANALYSIS" colors={colors} />
 
       <View
         style={[
@@ -387,10 +348,7 @@ export default function DiagnosisDetailsScreen({
           <>
             <StatusRow
               label="Prediction"
-              value={
-                diagnosis.image_prediction ||
-                'Completed'
-              }
+              value={diagnosis.image_prediction || 'Completed'}
               danger={imageIsCancer}
               colors={colors}
             />
@@ -399,10 +357,7 @@ export default function DiagnosisDetailsScreen({
               label="Confidence"
               value={
                 diagnosis.image_confidence != null
-                  ? `${(
-                      diagnosis.image_confidence *
-                      100
-                    ).toFixed(1)}%`
+                  ? `${(diagnosis.image_confidence * 100).toFixed(1)}%`
                   : '—'
               }
               colors={colors}
@@ -411,12 +366,8 @@ export default function DiagnosisDetailsScreen({
             <InfoRow
               label="Cancer probability"
               value={
-                diagnosis.image_cancer_probability !=
-                null
-                  ? `${(
-                      diagnosis.image_cancer_probability *
-                      100
-                    ).toFixed(1)}%`
+                diagnosis.image_cancer_probability != null
+                  ? `${(diagnosis.image_cancer_probability * 100).toFixed(1)}%`
                   : '—'
               }
               colors={colors}
@@ -425,12 +376,31 @@ export default function DiagnosisDetailsScreen({
             <InfoRow
               label="Non-cancer probability"
               value={
-                diagnosis.image_non_cancer_probability !=
-                null
-                  ? `${(
-                      diagnosis.image_non_cancer_probability *
-                      100
-                    ).toFixed(1)}%`
+                diagnosis.image_non_cancer_probability != null
+                  ? `${(diagnosis.image_non_cancer_probability * 100).toFixed(
+                      1,
+                    )}%`
+                  : '—'
+              }
+              colors={colors}
+              last
+            />
+
+            <InfoRow
+              label="Doctor Assigned Assessment"
+              value={
+                diagnosis.image_doctor_assessment != null
+                  ? `${diagnosis.image_doctor_assessment}`
+                  : '—'
+              }
+              colors={colors}
+              last
+            />
+            <InfoRow
+              label="Doctor Remarks"
+              value={
+                diagnosis.image_doctor_remarks != null
+                  ? `${diagnosis.image_doctor_remarks}`
                   : '—'
               }
               colors={colors}
@@ -442,10 +412,7 @@ export default function DiagnosisDetailsScreen({
 
       {/* AUDIO */}
 
-      <SectionTitle
-        title="VOICE ANALYSIS"
-        colors={colors}
-      />
+      <SectionTitle title="VOICE ANALYSIS" colors={colors} />
 
       <View
         style={[
@@ -462,50 +429,55 @@ export default function DiagnosisDetailsScreen({
           <>
             <StatusRow
               label="Prediction"
-              value={
-                diagnosis.audio_prediction ||
-                'Completed'
-              }
+              value={diagnosis.audio_prediction || 'Completed'}
               danger={audioIsPathology}
               colors={colors}
             />
-
             <InfoRow
               label="Confidence"
               value={
                 diagnosis.audio_confidence != null
-                  ? `${(
-                      diagnosis.audio_confidence *
-                      100
-                    ).toFixed(1)}%`
+                  ? `${(diagnosis.audio_confidence * 100).toFixed(1)}%`
                   : '—'
               }
               colors={colors}
             />
-
             <InfoRow
               label="Normal probability"
               value={
-                diagnosis.audio_normal_probability !=
-                null
-                  ? `${(
-                      diagnosis.audio_normal_probability *
-                      100
-                    ).toFixed(1)}%`
+                diagnosis.audio_normal_probability != null
+                  ? `${(diagnosis.audio_normal_probability * 100).toFixed(1)}%`
                   : '—'
               }
               colors={colors}
             />
-
             <InfoRow
               label="Pathology probability"
               value={
-                diagnosis.audio_pathology_probability !=
-                null
-                  ? `${(
-                      diagnosis.audio_pathology_probability *
-                      100
-                    ).toFixed(1)}%`
+                diagnosis.audio_pathology_probability != null
+                  ? `${(diagnosis.audio_pathology_probability * 100).toFixed(
+                      1,
+                    )}%`
+                  : '—'
+              }
+              colors={colors}
+              last
+            />
+            <InfoRow
+              label="Doctor Assigned Assessment"
+              value={
+                diagnosis.audio_doctor_assessment != null
+                  ? `${diagnosis.audio_doctor_assessment}`
+                  : '—'
+              }
+              colors={colors}
+              last
+            />
+            <InfoRow
+              label="Doctor Remarks"
+              value={
+                diagnosis.audio_doctor_remarks != null
+                  ? `${diagnosis.audio_doctor_remarks}`
                   : '—'
               }
               colors={colors}
@@ -519,24 +491,18 @@ export default function DiagnosisDetailsScreen({
 
       {hasAudio && (
         <>
-          <SectionTitle
-            title="RECORDED AUDIO"
-            colors={colors}
-          />
+          <SectionTitle title="RECORDED AUDIO" colors={colors} />
 
           <View
             style={[
               styles.audioCard,
               {
                 backgroundColor: colors.surface,
-                borderColor:
-                  colors.outlineVariant,
+                borderColor: colors.outlineVariant,
               },
             ]}
           >
-            <View
-              style={styles.audioHeader}
-            >
+            <View style={styles.audioHeader}>
               <View style={styles.audioIcon}>
                 <Text
                   style={{
@@ -548,15 +514,12 @@ export default function DiagnosisDetailsScreen({
                 </Text>
               </View>
 
-              <View
-                style={styles.audioInfo}
-              >
+              <View style={styles.audioInfo}>
                 <Text
                   style={[
                     styles.audioTitle,
                     {
-                      color:
-                        colors.onSurface,
+                      color: colors.onSurface,
                     },
                   ]}
                 >
@@ -567,8 +530,7 @@ export default function DiagnosisDetailsScreen({
                   style={[
                     styles.audioSubtitle,
                     {
-                      color:
-                        colors.onSurfaceVariant,
+                      color: colors.onSurfaceVariant,
                     },
                   ]}
                 >
@@ -582,11 +544,8 @@ export default function DiagnosisDetailsScreen({
               style={({ pressed }) => [
                 styles.audioButton,
                 {
-                  backgroundColor:
-                    colors.primary,
-                  opacity: pressed
-                    ? 0.8
-                    : 1,
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.8 : 1,
                 },
               ]}
             >
@@ -594,8 +553,7 @@ export default function DiagnosisDetailsScreen({
                 style={[
                   styles.audioButtonText,
                   {
-                    color:
-                      colors.onPrimary,
+                    color: colors.onPrimary,
                   },
                 ]}
               >
@@ -610,17 +568,13 @@ export default function DiagnosisDetailsScreen({
 
       {diagnosis.report_path && (
         <>
-          <SectionTitle
-            title="REPORT"
-            colors={colors}
-          />
+          <SectionTitle title="REPORT" colors={colors} />
 
           <View
             style={[
               styles.reportCard,
               {
-                backgroundColor:
-                  colors.primaryContainer,
+                backgroundColor: colors.primaryContainer,
               },
             ]}
           >
@@ -628,8 +582,7 @@ export default function DiagnosisDetailsScreen({
               style={[
                 styles.reportTitle,
                 {
-                  color:
-                    colors.onPrimaryContainer,
+                  color: colors.onPrimaryContainer,
                 },
               ]}
             >
@@ -640,28 +593,21 @@ export default function DiagnosisDetailsScreen({
               style={[
                 styles.reportSubtitle,
                 {
-                  color:
-                    colors.onPrimaryContainer,
+                  color: colors.onPrimaryContainer,
                 },
               ]}
             >
-              The complete diagnosis report is
-              stored on this device.
+              The complete diagnosis report is stored on this device.
             </Text>
 
-            <View
-              style={styles.reportButtons}
-            >
+            <View style={styles.reportButtons}>
               <Pressable
                 onPress={handleOpenReport}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   {
-                    backgroundColor:
-                      colors.primary,
-                    opacity: pressed
-                      ? 0.8
-                      : 1,
+                    backgroundColor: colors.primary,
+                    opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
@@ -669,8 +615,7 @@ export default function DiagnosisDetailsScreen({
                   style={[
                     styles.primaryButtonText,
                     {
-                      color:
-                        colors.onPrimary,
+                      color: colors.onPrimary,
                     },
                   ]}
                 >
@@ -683,11 +628,8 @@ export default function DiagnosisDetailsScreen({
                 style={({ pressed }) => [
                   styles.secondaryButton,
                   {
-                    borderColor:
-                      colors.primary,
-                    opacity: pressed
-                      ? 0.8
-                      : 1,
+                    borderColor: colors.primary,
+                    opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
@@ -695,8 +637,7 @@ export default function DiagnosisDetailsScreen({
                   style={[
                     styles.secondaryButtonText,
                     {
-                      color:
-                        colors.primary,
+                      color: colors.primary,
                     },
                   ]}
                 >
@@ -710,10 +651,7 @@ export default function DiagnosisDetailsScreen({
 
       {/* STORAGE INFO */}
 
-      <SectionTitle
-        title="STORAGE"
-        colors={colors}
-      />
+      <SectionTitle title="STORAGE" colors={colors} />
 
       <View
         style={[
@@ -724,11 +662,7 @@ export default function DiagnosisDetailsScreen({
           },
         ]}
       >
-        <InfoRow
-          label="Diagnosis ID"
-          value={diagnosis.id}
-          colors={colors}
-        />
+        <InfoRow label="Diagnosis ID" value={diagnosis.id} colors={colors} />
 
         <InfoRow
           label="Image stored"
@@ -744,11 +678,7 @@ export default function DiagnosisDetailsScreen({
 
         <InfoRow
           label="Report stored"
-          value={
-            diagnosis.report_path
-              ? 'Yes'
-              : 'No'
-          }
+          value={diagnosis.report_path ? 'Yes' : 'No'}
           colors={colors}
           last
         />
@@ -764,10 +694,8 @@ export default function DiagnosisDetailsScreen({
           },
         ]}
       >
-        For research and screening purposes only.
-        AI results are not a medical diagnosis and
-        should be reviewed by a qualified healthcare
-        professional.
+        For research and screening purposes only. AI results are not a medical
+        diagnosis and should be reviewed by a qualified healthcare professional.
       </Text>
     </ScrollView>
   );
@@ -775,10 +703,7 @@ export default function DiagnosisDetailsScreen({
 
 /* ---------------- COMPONENTS ---------------- */
 
-function SectionTitle({
-  title,
-  colors,
-}) {
+function SectionTitle({ title, colors }) {
   return (
     <Text
       style={[
@@ -793,20 +718,14 @@ function SectionTitle({
   );
 }
 
-function InfoRow({
-  label,
-  value,
-  colors,
-  last = false,
-}) {
+function InfoRow({ label, value, colors, last = false }) {
   return (
     <View
       style={[
         styles.infoRow,
         !last && styles.infoBorder,
         !last && {
-          borderBottomColor:
-            colors.outlineVariant,
+          borderBottomColor: colors.outlineVariant,
         },
       ]}
     >
@@ -814,8 +733,7 @@ function InfoRow({
         style={[
           styles.infoLabel,
           {
-            color:
-              colors.onSurfaceVariant,
+            color: colors.onSurfaceVariant,
           },
         ]}
       >
@@ -837,20 +755,14 @@ function InfoRow({
   );
 }
 
-function StatusRow({
-  label,
-  value,
-  danger,
-  colors,
-}) {
+function StatusRow({ label, value, danger, colors }) {
   return (
     <View style={styles.statusRow}>
       <Text
         style={[
           styles.infoLabel,
           {
-            color:
-              colors.onSurfaceVariant,
+            color: colors.onSurfaceVariant,
           },
         ]}
       >
@@ -861,9 +773,7 @@ function StatusRow({
         style={[
           styles.statusValue,
           {
-            color: danger
-              ? colors.error
-              : colors.primary,
+            color: danger ? colors.error : colors.primary,
           },
         ]}
       >
@@ -879,8 +789,7 @@ function NotPerformed({ colors }) {
       style={[
         styles.notPerformed,
         {
-          color:
-            colors.onSurfaceVariant,
+          color: colors.onSurfaceVariant,
         },
       ]}
     >

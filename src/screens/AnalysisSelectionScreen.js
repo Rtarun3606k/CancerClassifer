@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import { TextInput } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useDiagnosis } from '../context/DiagnosisContext';
 
@@ -7,9 +7,11 @@ export default function AnalysisSelectionScreen({ colors, onStart, onBack }) {
   const [imageSelected, setImageSelected] = useState(false);
 
   const [audioSelected, setAudioSelected] = useState(false);
+  const [doctorName, setDoctorName] = useState('');
+  const [hospitalName, setHospitalName] = useState('');
 
   const canContinue = imageSelected || audioSelected;
-  const { setSelectedAnalyses } = useDiagnosis();
+  const { setSelectedAnalyses, setHospitalDetails } = useDiagnosis();
 
   const handleContinue = () => {
     if (!canContinue) {
@@ -19,6 +21,11 @@ export default function AnalysisSelectionScreen({ colors, onStart, onBack }) {
     setSelectedAnalyses({
       image: imageSelected,
       audio: audioSelected,
+    });
+
+    setHospitalDetails({
+      hospitalName: hospitalName,
+      doctorName: doctorName,
     });
 
     onStart({
@@ -74,6 +81,92 @@ export default function AnalysisSelectionScreen({ colors, onStart, onBack }) {
       >
         Select the screening methods you want to perform for this diagnosis.
       </Text>
+
+      {/* Doctor / Hospital Details */}
+
+      <View
+        style={[
+          styles.detailsCard,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.sectionLabel,
+            {
+              color: colors.onSurface,
+            },
+          ]}
+        >
+          DOCTOR DETAILS
+        </Text>
+
+        <Text
+          style={[
+            styles.inputLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Doctor Name
+        </Text>
+
+        <TextInput
+          value={doctorName}
+          onChangeText={setDoctorName}
+          placeholder="Enter doctor's name"
+          placeholderTextColor={colors.onSurfaceVariant}
+          style={[
+            styles.input,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        />
+
+        <Text
+          style={[
+            styles.inputLabel,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Hospital / Clinic
+        </Text>
+
+        <TextInput
+          value={hospitalName}
+          onChangeText={setHospitalName}
+          placeholder="Enter hospital or clinic name"
+          placeholderTextColor={colors.onSurfaceVariant}
+          style={[
+            styles.input,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        />
+
+        <Text
+          style={[
+            styles.optionalText,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          Optional
+        </Text>
+      </View>
 
       {/* Image */}
 
@@ -406,5 +499,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
     paddingHorizontal: 8,
+  },
+  detailsCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 18,
+  },
+
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 16,
+  },
+
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 7,
+  },
+
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginBottom: 14,
+  },
+
+  optionalText: {
+    fontSize: 11,
+    marginTop: -4,
   },
 });

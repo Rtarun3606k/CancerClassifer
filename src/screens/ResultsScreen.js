@@ -366,7 +366,7 @@ console.log(
               },
             ]}
           >
-            {reportPath ? 'Report Generated' : 'Generate Combined Report'}
+            {reportPath ? 'Report Generated and Data saved' : 'Generate Combined Report and Save Data'}
           </Text>
         )}
       </Pressable>

@@ -29,7 +29,8 @@
     "react-native-nitro-modules": "^0.36.5",
     "react-native-nitro-sqlite": "^9.7.0",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-share": "^12.3.1"
+    "react-native-share": "^12.3.1",
+    "react-native-zip-archive": "^9.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

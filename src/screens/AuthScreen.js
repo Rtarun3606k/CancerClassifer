@@ -89,7 +89,7 @@ export default function AuthScreen({ colors, onAuthenticated }) {
     } catch (error) {
       console.error('DEVICE AUTH ERROR:', error);
 
-      setError('Authentication cancelled or failed.');
+      setError(error?.message || 'Authentication cancelled or failed.');
     } finally {
       setBusy(false);
     }
@@ -609,17 +609,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  hint: {
-    marginTop: 18,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
+ hint: {
+  marginTop: 18,
+  paddingHorizontal: 20,
+  fontSize: 12,
+  lineHeight: 18,
+  textAlign: 'center',
+},
 
   footer: {
-    position: 'absolute',
-    bottom: 28,
+    marginTop: 28,
+    marginBottom: 10,
     fontSize: 11,
+    textAlign: 'center',
   },
 
   logo: {

@@ -5,7 +5,7 @@ export default function AppHeader({
   colors,
   title = 'OralScan',
   subtitle = '',
-  status = 'READY',
+  status = 'Beta 2.7.4',
 }) {
   return (
     <View style={styles.header}>
@@ -67,7 +67,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 5,
-    
   },
 
   brandRow: {

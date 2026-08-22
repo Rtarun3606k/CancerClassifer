@@ -19,6 +19,9 @@ export async function initializeDatabase() {
       state TEXT,
       city TEXT,
 
+      doctor_name TEXT,
+      hospital_name TEXT,
+
       image_selected INTEGER NOT NULL DEFAULT 0,
       audio_selected INTEGER NOT NULL DEFAULT 0,
 
@@ -27,12 +30,16 @@ export async function initializeDatabase() {
       image_confidence REAL,
       image_cancer_probability REAL,
       image_non_cancer_probability REAL,
+      image_doctor_assessment TEXT,
+      image_doctor_remarks TEXT,
 
       audio_path TEXT,
       audio_prediction TEXT,
       audio_confidence REAL,
       audio_pathology_probability REAL,
       audio_normal_probability REAL,
+      audio_doctor_assessment TEXT,
+      audio_doctor_remarks TEXT,
 
       report_path TEXT
     );
@@ -46,8 +53,16 @@ export async function saveDiagnosis(diagnosis) {
     throw new Error('Diagnosis data is missing.');
   }
 
-  const { id, createdAt, patient, selectedAnalyses, image, audio, reportPath } =
-    diagnosis;
+  const {
+    id,
+    createdAt,
+    patient,
+    hospitalDetails,
+    selectedAnalyses,
+    image,
+    audio,
+    reportPath,
+  } = diagnosis;
 
   if (!id) {
     throw new Error('Diagnosis ID is missing.');
@@ -62,42 +77,54 @@ export async function saveDiagnosis(diagnosis) {
 
   await db.executeAsync(
     `
-    INSERT OR REPLACE INTO diagnoses (
-      id,
-      created_at,
+  INSERT OR REPLACE INTO diagnoses (
+    id,
+    created_at,
 
-      patient_name,
-      date_of_birth,
-      age_at_diagnosis,
+    patient_name,
+    date_of_birth,
+    age_at_diagnosis,
 
-      gender,
-      country,
-      state,
-      city,
+    gender,
+    country,
+    state,
+    city,
 
-      image_selected,
-      audio_selected,
+    doctor_name,
+    hospital_name,
 
-      image_path,
-      image_prediction,
-      image_confidence,
-      image_cancer_probability,
-      image_non_cancer_probability,
+    image_selected,
+    audio_selected,
 
-      audio_path,
-      audio_prediction,
-      audio_confidence,
-      audio_pathology_probability,
-      audio_normal_probability,
+    image_path,
+    image_prediction,
+    image_confidence,
+    image_cancer_probability,
+    image_non_cancer_probability,
+    image_doctor_assessment,
+    image_doctor_remarks,
 
-      report_path
-    )
+    audio_path,
+    audio_prediction,
+    audio_confidence,
+    audio_pathology_probability,
+    audio_normal_probability,
+    audio_doctor_assessment,
+    audio_doctor_remarks,
 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?)
-    `,
+    report_path
+  )
+
+  VALUES (
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?,
+    ?
+  )
+  `,
     [
       id,
       createdAt || new Date().toISOString(),
@@ -111,6 +138,9 @@ export async function saveDiagnosis(diagnosis) {
       patient.state || null,
       patient.city || null,
 
+      hospitalDetails?.doctorName || null,
+      hospitalDetails?.hospitalName || null,
+
       selectedAnalyses?.image ? 1 : 0,
       selectedAnalyses?.audio ? 1 : 0,
 
@@ -119,17 +149,20 @@ export async function saveDiagnosis(diagnosis) {
       imageResult?.probability ?? null,
       imageResult?.probabilities?.CANCER ?? null,
       imageResult?.probabilities?.['NON CANCER'] ?? null,
+      image?.doctorAssessment || null,
+      image?.doctorRemarks || null,
 
       audio?.path || null,
       audioResult?.prediction || null,
       audioResult?.confidence ?? null,
       audioResult?.pathologyProbability ?? null,
       audioResult?.normalProbability ?? null,
+      audio?.doctorAssessment || null,
+      audio?.doctorRemarks || null,
 
       reportPath || null,
     ],
   );
-
   console.log('Diagnosis saved:', id);
 
   return id;
@@ -167,7 +200,6 @@ export async function deleteDiagnosis(id) {
     [id],
   );
 }
-
 
 export async function updateDiagnosisReportPath(id, reportPath) {
   if (!id) {
