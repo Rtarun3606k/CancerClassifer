@@ -1,0 +1,15 @@
+node_modules/
+android/
+ios/
+build/
+.vscode/
+.idea/
+assets/model/
+*.log
+coverage/
+dist/
+src/screens/
+src/components/
+App.js
+App.tsx
+index.js

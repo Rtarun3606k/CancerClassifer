@@ -6,6 +6,8 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "lint:ci": "eslint src/services src/report src/ml src/context",
+    "lint:fix": "eslint --fix src/services src/report src/ml src/context",
     "start": "react-native start",
     "test": "jest"
   },

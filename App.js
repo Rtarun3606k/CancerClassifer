@@ -35,6 +35,28 @@ const { AndroidTheme } = NativeModules;
 
 import AuthScreen from './src/screens/AuthScreen';
 
+const SplashIcon = () => {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: theme?.isDark ? '#202124' : '#FFFFFF',
+      }}
+    >
+      <Image
+        source={require('./assets/oralscan.png')}
+        style={{
+          width: 270,
+          height: 270,
+          resizeMode: 'contain',
+        }}
+      />
+    </View>
+  );
+};
+
 function androidColorToHex(color) {
   const unsigned = color >>> 0;
 
@@ -140,25 +162,7 @@ function AppContent() {
   };
 
   if (showOnboarding === null || theme === null) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: theme?.isDark ? '#202124' : '#FFFFFF',
-        }}
-      >
-        <Image
-          source={require('./assets/oralscan.png')}
-          style={{
-            width: 270,
-            height: 270,
-            resizeMode: 'contain',
-          }}
-        />
-      </View>
-    );
+    return <SplashIcon />;
   }
   const colors = createColors(theme);
 
