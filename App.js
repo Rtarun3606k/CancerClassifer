@@ -35,28 +35,6 @@ const { AndroidTheme } = NativeModules;
 
 import AuthScreen from './src/screens/AuthScreen';
 
-const SplashIcon = () => {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: theme?.isDark ? '#202124' : '#FFFFFF',
-      }}
-    >
-      <Image
-        source={require('./assets/oralscan.png')}
-        style={{
-          width: 270,
-          height: 270,
-          resizeMode: 'contain',
-        }}
-      />
-    </View>
-  );
-};
-
 function androidColorToHex(color) {
   const unsigned = color >>> 0;
 
@@ -117,20 +95,20 @@ function AppContent() {
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    initializeDatabase().catch(error => {
+    initializeDatabase().catch((error) => {
       console.error('DATABASE INITIALIZATION ERROR:', error);
     });
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem('onboarding_complete').then(value => {
+    AsyncStorage.getItem('onboarding_complete').then((value) => {
       setShowOnboarding(value !== 'true');
     });
   }, []);
 
   useEffect(() => {
     AndroidTheme.getTheme()
-      .then(nativeTheme => {
+      .then((nativeTheme) => {
         setTheme({
           primary: androidColorToHex(nativeTheme.primary),
 
@@ -147,7 +125,7 @@ function AppContent() {
           isDark: nativeTheme.isDark,
         });
       })
-      .catch(error => {
+      .catch((error) => {
         console.error('Theme error:', error);
       });
   }, []);
@@ -162,7 +140,25 @@ function AppContent() {
   };
 
   if (showOnboarding === null || theme === null) {
-    return <SplashIcon />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme?.isDark ? '#202124' : '#FFFFFF',
+        }}
+      >
+        <Image
+          source={require('./assets/oralscan.png')}
+          style={{
+            width: 270,
+            height: 270,
+            resizeMode: 'contain',
+          }}
+        />
+      </View>
+    );
   }
   const colors = createColors(theme);
 
@@ -285,7 +281,7 @@ function AppContent() {
         <HistoryScreen
           colors={colors}
           onBack={() => setScreen('home')}
-          onSelectDiagnosis={diagnosis => {
+          onSelectDiagnosis={(diagnosis) => {
             setSelectedDiagnosisId(diagnosis.id);
             setScreen('diagnosisDetails');
           }}
