@@ -35,11 +35,13 @@ export default function ResultsScreen({ colors, onHome }) {
   const [generatingReport, setGeneratingReport] = useState(false);
 
 const reportPath = diagnosis?.reportPath ?? null;
-  const imageResult = diagnosis?.image?.result;
+  const images = diagnosis?.image?.images ?? [];
+
+  const analyzedImages = images.filter(image => !!image.result);
 
   const audioResult = diagnosis?.audio?.result;
 
-  const hasImage = !!imageResult;
+  const hasImage = analyzedImages.length > 0;
 
   const hasAudio = !!audioResult;
 
@@ -220,53 +222,102 @@ console.log(
           {diagnosis?.patient?.gender ? ` • ${diagnosis.patient.gender}` : ''}
         </Text>
       </View>
-      {/* Image Result */}
-      <ResultCard title="Image Analysis" available={hasImage} colors={colors}>
+      {/* Image Results */}
+      <ResultCard
+        title={`Image Analysis${
+          hasImage ? ` (${analyzedImages.length})` : ''
+        }`}
+        available={hasImage}
+        colors={colors}
+      >
         {hasImage ? (
-          <>
-            <Text
-              style={[
-                styles.prediction,
-                {
-                  color:
-                    imageResult.classIndex === 0
-                      ? colors.error
-                      : colors.primary,
-                },
-              ]}
-            >
-              {imageResult.className || 'Result available'}
-            </Text>
+          analyzedImages.map((image, index) => {
+            const result = image.result;
 
-            {imageResult.probability != null && (
-              <Text
+            const isCancer = result.classIndex === 0;
+
+            return (
+              <View
+                key={image.id || index}
                 style={[
-                  styles.confidence,
-                  {
-                    color: colors.onSurfaceVariant,
+                  styles.imageResult,
+                  index > 0 && {
+                    borderTopWidth: 1,
+                    borderTopColor: colors.outlineVariant,
                   },
                 ]}
               >
-                Confidence: {(imageResult.probability * 100).toFixed(1)}%
-              </Text>
-            )}
+                <Text
+                  style={[
+                    styles.imageResultTitle,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  IMAGE {index + 1}
+                </Text>
 
-            {imageResult.probabilities && (
-              <View style={styles.probabilities}>
-                <ProbabilityRow
-                  label="Cancer"
-                  value={imageResult.probabilities.CANCER}
-                  colors={colors}
-                />
+                <Text
+                  style={[
+                    styles.prediction,
+                    {
+                      color: isCancer ? colors.error : colors.primary,
+                    },
+                  ]}
+                >
+                  {result.className || 'Result available'}
+                </Text>
 
-                <ProbabilityRow
-                  label="Non Cancer"
-                  value={imageResult.probabilities['NON CANCER']}
-                  colors={colors}
-                />
+                {result.probability != null && (
+                  <Text
+                    style={[
+                      styles.confidence,
+                      {
+                        color: colors.onSurfaceVariant,
+                      },
+                    ]}
+                  >
+                    Confidence: {(result.probability * 100).toFixed(1)}%
+                  </Text>
+                )}
+
+                {result.probabilities && (
+                  <View style={styles.probabilities}>
+                    <ProbabilityRow
+                      label="Cancer"
+                      value={result.probabilities.CANCER}
+                      colors={colors}
+                    />
+
+                    <ProbabilityRow
+                      label="Non Cancer"
+                      value={result.probabilities['NON CANCER']}
+                      colors={colors}
+                    />
+                  </View>
+                )}
+
+                <Text
+                  style={[
+                    styles.assessment,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  Doctor assessment: {image.doctorAssessment || 'Not provided'}
+                </Text>
+
+                {!!image.doctorRemarks && (
+                  <Text
+                    style={[
+                      styles.assessment,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                  >
+                    Remarks: {image.doctorRemarks}
+                  </Text>
+                )}
               </View>
-            )}
-          </>
+            );
+          })
         ) : (
           <Text
             style={[
@@ -306,7 +357,13 @@ console.log(
                 },
               ]}
             >
-              Confidence: {audioResult.confidencePercentage.toFixed(1)}%
+              Confidence:{' '}
+              {(audioResult.confidencePercentage ??
+                (audioResult.confidence != null
+                  ? audioResult.confidence * 100
+                  : 0)
+              ).toFixed(1)}
+              %
             </Text>
 
             <View style={styles.probabilities}>
@@ -688,6 +745,24 @@ const styles = StyleSheet.create({
   progress: {
     height: '100%',
     borderRadius: 4,
+  },
+
+  imageResult: {
+    marginTop: 14,
+    paddingTop: 14,
+  },
+
+  imageResultTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+
+  assessment: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   notPerformed: {

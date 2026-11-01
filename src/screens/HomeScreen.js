@@ -11,16 +11,19 @@ export default function HomeScreen({
   onAudio,
   onStartDiagnosis,
   onHistory,
+  onLiveVideo,
 }) {
   const { diagnosis, startNewDiagnosis } = useDiagnosis();
 
   const patient = diagnosis.patient;
 
-  const imageResult = diagnosis.image?.result;
+  const images = diagnosis.image?.images ?? [];
+
+  const analyzedImages = images.filter(image => !!image.result);
 
   const audioResult = diagnosis.audio?.result;
 
-  const hasImage = !!imageResult;
+  const hasImage = analyzedImages.length > 0;
   const hasAudio = !!audioResult;
 
   const hasPatient = !!patient.name && !!patient.dateOfBirth;
@@ -285,7 +288,7 @@ export default function HomeScreen({
                   },
                 ]}
               >
-                Analyze an oral image using the on-device ML model.
+                Analyze one or more oral images using the on-device ML model.
               </Text>
 
               <View style={styles.statusRow}>
@@ -323,11 +326,8 @@ export default function HomeScreen({
                     },
                   ]}
                 >
-                  {imageResult.className ||
-                    imageResult.prediction ||
-                    'Result available'}
-                  {imageResult.probability != null &&
-                    ` • ${(imageResult.probability * 100).toFixed(1)}%`}
+                  {analyzedImages.length}{' '}
+                  {analyzedImages.length === 1 ? 'image' : 'images'} analyzed
                 </Text>
               )}
             </View>
@@ -521,6 +521,120 @@ export default function HomeScreen({
           ]}
         >
           View History
+        </Text>
+      </Pressable>
+
+      {/* Experimental testing tools */}
+
+      <Text
+        style={[
+          styles.experimentalTitle,
+          {
+            color: colors.onBackground,
+          },
+        ]}
+      >
+        Experimental
+      </Text>
+
+      <Text
+        style={[
+          styles.sectionSubtitle,
+          {
+            color: colors.onSurfaceVariant,
+          },
+        ]}
+      >
+        Testing tools that are not part of a diagnosis.
+      </Text>
+
+      <Pressable
+        onPress={onLiveVideo}
+        style={({ pressed }) => [
+          styles.analysisCard,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.outlineVariant,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.analysisIcon,
+            {
+              backgroundColor: colors.primaryContainer,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.analysisIconText,
+              {
+                color: colors.onPrimaryContainer,
+              },
+            ]}
+          >
+            ▣
+          </Text>
+        </View>
+
+        <View style={styles.analysisContent}>
+          <Text
+            style={[
+              styles.analysisTitle,
+              {
+                color: colors.onSurface,
+              },
+            ]}
+          >
+            Live Video Detection
+          </Text>
+
+          <Text
+            style={[
+              styles.analysisDescription,
+              {
+                color: colors.onSurfaceVariant,
+              },
+            ]}
+          >
+            Open the rear camera for experimental live AI inference
+            and a local positive-case drawer.
+          </Text>
+
+          <View style={styles.statusRow}>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor: colors.primary,
+                },
+              ]}
+            />
+
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color: colors.primary,
+                },
+              ]}
+            >
+              Camera + live AI test
+            </Text>
+          </View>
+        </View>
+
+        <Text
+          style={[
+            styles.arrow,
+            {
+              color: colors.primary,
+            },
+          ]}
+        >
+          ›
         </Text>
       </Pressable>
 
@@ -806,5 +920,12 @@ const styles = StyleSheet.create({
 historyButtonText: {
   fontSize: 15,
   fontWeight: '600',
+},
+
+experimentalTitle: {
+  fontSize: 18,
+  lineHeight: 24,
+  fontWeight: '600',
+  marginTop: 26,
 },
 });

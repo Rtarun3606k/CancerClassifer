@@ -30,6 +30,7 @@ import ResultsScreen from './src/screens/ResultsScreen';
 
 import { initializeDatabase } from './src/services/database';
 import DiagnosisDetailsScreen from './src/screens/DiagnosisDetailsScreen';
+import LiveVideoScreen from './src/screens/LiveVideoScreen';
 
 const { AndroidTheme } = NativeModules;
 
@@ -185,20 +186,30 @@ function AppContent() {
       }}
     >
       <StatusBar
-        barStyle={theme.isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.background}
+        barStyle={
+          screen === 'liveVideo'
+            ? 'light-content'
+            : theme.isDark
+            ? 'light-content'
+            : 'dark-content'
+        }
+        backgroundColor={
+          screen === 'liveVideo' ? '#050705' : theme.background
+        }
         translucent={false}
       />
 
-      <View
-        style={{
-          marginTop: 30,
-          marginBottom: -20,
-          backgroundColor: colors.background,
-        }}
-      >
-        <AppHeader colors={colors} />
-      </View>
+      {screen !== 'liveVideo' && (
+        <View
+          style={{
+            marginTop: 30,
+            marginBottom: -20,
+            backgroundColor: colors.background,
+          }}
+        >
+          <AppHeader colors={colors} />
+        </View>
+      )}
       {screen === 'disclaimer' && (
         <DisclaimerScreen
           colors={colors}
@@ -222,6 +233,15 @@ function AppContent() {
           onAudio={() => setScreen('audio')}
           onStartDiagnosis={() => setScreen('disclaimer')}
           onHistory={() => setScreen('history')}
+          onLiveVideo={() => setScreen('liveVideo')}
+        />
+      )}
+
+      {screen === 'liveVideo' && (
+        <LiveVideoScreen
+          colors={colors}
+          isFocused={screen === 'liveVideo'}
+          onBack={() => setScreen('home')}
         />
       )}
 

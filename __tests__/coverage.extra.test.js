@@ -235,6 +235,66 @@ describe('coverage for services/report/ml/context', () => {
     );
   });
 
+  test('diagnosisStorage supports image sub folders and single file deletion', async () => {
+    const storage = require('../src/services/diagnosisStorage');
+    const RNFS = require('react-native-fs').default;
+
+    RNFS.exists.mockImplementation(async path => path === '/tmp/source.jpg');
+
+    await expect(
+      storage.createDiagnosisFolder('diag-x', 'images'),
+    ).resolves.toBe('/documents/OralScan/diagnoses/diag-x/images');
+
+    await expect(
+      storage.copyDiagnosisFile(
+        'file:///tmp/source.jpg',
+        'diag-x',
+        'images/image-01.jpg',
+      ),
+    ).resolves.toBe('/documents/OralScan/diagnoses/diag-x/images/image-01.jpg');
+
+    expect(storage.getDiagnosisFolderPath('diag-x')).toBe(
+      '/documents/OralScan/diagnoses/diag-x',
+    );
+
+    await expect(
+      storage.ensureDirectory('/documents/OralScan/diagnoses'),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      storage.ensureDirectory(null),
+    ).resolves.toBeUndefined();
+
+    RNFS.exists.mockResolvedValue(true);
+
+    await expect(
+      storage.deleteDiagnosisFile('file:///tmp/source.jpg'),
+    ).resolves.toBe(true);
+
+    RNFS.exists.mockResolvedValue(false);
+
+    await expect(storage.deleteDiagnosisFile('/tmp/missing.jpg')).resolves.toBe(
+      false,
+    );
+
+    await expect(storage.deleteDiagnosisFile(null)).resolves.toBe(false);
+  });
+
+  test('copyDiagnosisFile rejects when the source is missing', async () => {
+    const storage = require('../src/services/diagnosisStorage');
+    const RNFS = require('react-native-fs').default;
+
+    RNFS.exists.mockResolvedValue(false);
+
+    await expect(
+      storage.copyDiagnosisFile('/tmp/absent.jpg', 'diag-1', 'photo.jpg'),
+    ).rejects.toThrow('Source file does not exist');
+
+    await expect(
+      storage.copyDiagnosisFile(null, 'diag-1', 'photo.jpg'),
+    ).resolves.toBeNull();
+  });
+
   test('exportService archives diagnosis data and rejects empty exports', async () => {
     const exportService = require('../src/services/exportService');
     const database = require('../src/services/database');
@@ -351,6 +411,8 @@ describe('coverage for services/report/ml/context', () => {
         selectedAnalyses: { image: true },
       }),
     ).rejects.toThrow('Patient information is missing.');
+    // A content URI cannot be turned into a preview, but the report must
+    // still be generated from the stored prediction data.
     await expect(
       reportGenerator.generateReport({
         patient: { name: 'Alice', dateOfBirth: '1990-01-01' },
@@ -365,7 +427,7 @@ describe('coverage for services/report/ml/context', () => {
           },
         },
       }),
-    ).rejects.toThrow('content URI');
+    ).resolves.toBe('/tmp/report.pdf');
   });
 
   test('image and model helpers classify and validate errors', async () => {
@@ -708,7 +770,7 @@ describe('coverage for services/report/ml/context', () => {
     expect(ctx.diagnosis.patient.name).toBe('Alice');
     expect(ctx.diagnosis.selectedAnalyses.image).toBe(true);
     expect(ctx.diagnosis.hospitalDetails.hospitalName).toBe('Test Clinic');
-    expect(ctx.diagnosis.image.result.className).toBe('CANCER');
+    expect(ctx.diagnosis.image.images[0].result.className).toBe('CANCER');
     expect(ctx.diagnosis.audio.result.prediction).toBe('Normal');
     expect(ctx.diagnosis.reportPath).toBe('/tmp/report.pdf');
 

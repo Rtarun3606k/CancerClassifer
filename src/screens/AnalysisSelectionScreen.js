@@ -172,7 +172,7 @@ export default function AnalysisSelectionScreen({ colors, onStart, onBack }) {
 
       <AnalysisOption
         title="Image Analysis"
-        description="Analyze an oral image using the on-device image classification model."
+        description="Analyze one or more oral images using the on-device image classification model."
         icon="◎"
         selected={imageSelected}
         onPress={() => setImageSelected(!imageSelected)}

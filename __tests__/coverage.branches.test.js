@@ -321,6 +321,8 @@ describe('branch helpers', () => {
         { id: 'd1', image_path: null, audio_path: null, report_path: null },
       ]);
 
+    jest.spyOn(database, 'getDiagnosisImages').mockResolvedValueOnce([]);
+
     const exportService = require('../src/services/exportService');
     await expect(exportService.exportAllData()).rejects.toThrow(
       'Android Downloads directory is unavailable.',
@@ -351,27 +353,35 @@ describe('branch helpers', () => {
     );
   });
 
-  test('generateReport errors when image file missing', async () => {
+  test('generateReport still succeeds when an image file is missing', async () => {
     const RNFS = require('react-native-fs').default;
     RNFS.exists.mockResolvedValue(false);
 
     const reportGenerator = require('../src/report/reportGenerator');
+    const generatePDF = require('react-native-html-to-pdf').generatePDF;
 
-    await expect(
-      reportGenerator.generateReport({
-        patient: { name: 'Missing', dateOfBirth: '1990-01-01' },
-        selectedAnalyses: { image: true },
-        image: {
-          uri: '/tmp/missing.jpg',
-          result: {
-            className: 'CANCER',
-            probability: 0.9,
-            probabilities: { CANCER: 0.9, 'NON CANCER': 0.1 },
-            classIndex: 0,
-          },
+    const filePath = await reportGenerator.generateReport({
+      patient: { name: 'Missing', dateOfBirth: '1990-01-01' },
+      selectedAnalyses: { image: true },
+      image: {
+        uri: '/tmp/missing.jpg',
+        result: {
+          className: 'CANCER',
+          probability: 0.9,
+          probabilities: { CANCER: 0.9, 'NON CANCER': 0.1 },
+          classIndex: 0,
         },
-      }),
-    ).rejects.toThrow('Image file does not exist');
+      },
+    });
+
+    expect(filePath).toBe('/tmp/report.pdf');
+    expect(generatePDF).toHaveBeenCalled();
+
+    const html = generatePDF.mock.calls[generatePDF.mock.calls.length - 1][0]
+      .html;
+
+    expect(html).toContain('Image preview unavailable');
+    expect(html).toContain('CANCER');
   });
 
   test('authService throws when native Auth missing (reloaded)', async () => {
@@ -490,6 +500,10 @@ describe('branch helpers', () => {
 
     jest.spyOn(database, 'getAllDiagnoses').mockResolvedValueOnce(diagnoses);
 
+    jest.spyOn(database, 'getDiagnosisImages').mockResolvedValueOnce([
+      { id: 'i1', image_order: 0, image_path: '/tmp/img.jpg' },
+    ]);
+
     // ensure Downloads path is available (previous tests may have cleared it)
     RNFS.DownloadDirectoryPath = '/downloads';
 
@@ -515,27 +529,33 @@ describe('branch helpers', () => {
     expect(RNFS.unlink).toHaveBeenCalled();
   });
 
-  test('generateReport throws when image uses content URI', async () => {
+  test('generateReport tolerates images that cannot be previewed', async () => {
     const RNFS = require('react-native-fs').default;
     RNFS.exists.mockResolvedValue(true);
 
     const reportGenerator = require('../src/report/reportGenerator');
+    const generatePDF = require('react-native-html-to-pdf').generatePDF;
 
-    await expect(
-      reportGenerator.generateReport({
-        patient: { name: 'Content', dateOfBirth: '1990-01-01' },
-        selectedAnalyses: { image: true },
-        image: {
-          uri: 'content://images/123',
-          result: {
-            className: 'CANCER',
-            probability: 0.9,
-            probabilities: { CANCER: 0.9, 'NON CANCER': 0.1 },
-            classIndex: 0,
-          },
+    const filePath = await reportGenerator.generateReport({
+      patient: { name: 'Content', dateOfBirth: '1990-01-01' },
+      selectedAnalyses: { image: true },
+      image: {
+        uri: 'content://images/123',
+        result: {
+          className: 'CANCER',
+          probability: 0.9,
+          probabilities: { CANCER: 0.9, 'NON CANCER': 0.1 },
+          classIndex: 0,
         },
-      }),
-    ).rejects.toThrow(/content URI/);
+      },
+    });
+
+    expect(filePath).toBe('/tmp/report.pdf');
+
+    const html = generatePDF.mock.calls[generatePDF.mock.calls.length - 1][0]
+      .html;
+
+    expect(html).toContain('Image preview unavailable');
   });
 
   test('generateReport throws when ReportAssets native module missing (reloaded)', async () => {
@@ -647,6 +667,10 @@ describe('branch helpers', () => {
     jest.spyOn(database, 'getAllDiagnoses').mockResolvedValueOnce(diagnoses);
 
     RNFS.DownloadDirectoryPath = '/downloads';
+
+    jest.spyOn(database, 'getDiagnosisImages').mockResolvedValueOnce([
+      { id: 'i1', image_order: 0, image_path: '/tmp/missing.jpg' },
+    ]);
 
     RNFS.exists.mockImplementation(async path => {
       // export root exists, zipPath does not exist, but image file missing

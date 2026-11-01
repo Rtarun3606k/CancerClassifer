@@ -90,12 +90,81 @@ describe('DiagnosisContext', () => {
       });
     });
 
-    expect(getValue().diagnosis.image).toEqual({
+    const images = getValue().diagnosis.image.images;
+
+    expect(images).toHaveLength(1);
+
+    expect(images[0]).toMatchObject({
       uri: 'file://image.jpg',
       result: 'Positive',
       doctorAssessment: 'Needs biopsy',
       doctorRemarks: 'Urgent',
     });
+  });
+
+  test('adds multiple images without losing individual data', () => {
+    const { getValue } = renderContext();
+
+    let ids;
+
+    act(() => {
+      ids = getValue().addImages([
+        { uri: 'file://a.jpg', fileName: 'a.jpg' },
+        { uri: 'file://b.jpg', fileName: 'b.jpg' },
+      ]);
+    });
+
+    expect(ids).toHaveLength(2);
+    expect(getValue().diagnosis.image.images).toHaveLength(2);
+    expect(getValue().diagnosis.image.images[1].fileName).toBe('b.jpg');
+
+    act(() => {
+      getValue().updateImage(ids[0], {
+        result: { className: 'CANCER' },
+        status: 'completed',
+      });
+    });
+
+    const [first, second] = getValue().diagnosis.image.images;
+
+    expect(first.result).toEqual({ className: 'CANCER' });
+    expect(second.result).toBeNull();
+
+    act(() => {
+      getValue().removeImage(ids[0]);
+    });
+
+    expect(getValue().diagnosis.image.images).toHaveLength(1);
+    expect(getValue().diagnosis.image.images[0].id).toBe(ids[1]);
+  });
+
+  test('stores a doctor assessment per image', () => {
+    const { getValue } = renderContext();
+
+    let ids;
+
+    act(() => {
+      ids = getValue().addImages([{ uri: 'file://a.jpg' }, { uri: 'file://b.jpg' }]);
+    });
+
+    act(() => {
+      getValue().setImageAssessment(ids[1], {
+        doctorAssessment: 'Cancer',
+        doctorRemarks: 'Biopsy advised',
+      });
+    });
+
+    expect(getValue().diagnosis.image.images[0].doctorAssessment).toBe('');
+    expect(getValue().diagnosis.image.images[1]).toMatchObject({
+      doctorAssessment: 'Cancer',
+      doctorRemarks: 'Biopsy advised',
+    });
+  });
+
+  test('starts with an empty image list', () => {
+    const { getValue } = renderContext();
+
+    expect(getValue().diagnosis.image).toEqual({ images: [] });
   });
 
   test('updates audio results correctly', () => {

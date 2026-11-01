@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Modal,
   NativeModules,
   Pressable,
   ScrollView,
@@ -11,9 +12,61 @@ import {
   View,
 } from 'react-native';
 
-import { getDiagnosisById } from '../services/database';
+import { getDiagnosisWithImages } from '../services/database';
+import {
+  diagnosisSourceFromRow,
+  DIAGNOSIS_SOURCE,
+  getDiagnosisSourceLabel,
+} from '../utils/diagnosisSource';
 
 const { SharePdf } = NativeModules;
+
+function imageUri(path) {
+  if (!path) {
+    return null;
+  }
+
+  return path.startsWith('file://') ? path : `file://${path}`;
+}
+
+function imageName(row, index) {
+  if (row.image_file_name) {
+    return row.image_file_name;
+  }
+
+  if (row.image_path) {
+    return row.image_path.split('/').pop();
+  }
+
+  return `image-${String(index + 1).padStart(2, '0')}`;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })} ${date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
+function modelLabel(row) {
+  return [row.model_name, row.model_version]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 export default function DiagnosisDetailsScreen({
   colors,
@@ -22,6 +75,7 @@ export default function DiagnosisDetailsScreen({
 }) {
   const [diagnosis, setDiagnosis] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [previewImageId, setPreviewImageId] = useState(null);
 
   useEffect(() => {
     loadDiagnosis();
@@ -33,7 +87,7 @@ export default function DiagnosisDetailsScreen({
 
       console.log('LOADING DIAGNOSIS:', diagnosisId);
 
-      const data = await getDiagnosisById(diagnosisId);
+      const data = await getDiagnosisWithImages(diagnosisId);
 
       console.log('DIAGNOSIS DETAILS:', data);
 
@@ -158,13 +212,23 @@ export default function DiagnosisDetailsScreen({
     );
   }
 
-  const hasImage = diagnosis.image_selected === 1 && !!diagnosis.image_path;
+  const images = diagnosis.images ?? [];
+
+  const hasImage = images.length > 0;
 
   const hasAudio = diagnosis.audio_selected === 1 && !!diagnosis.audio_path;
 
-  const imageIsCancer = diagnosis.image_prediction === 'CANCER';
+  const source = diagnosisSourceFromRow(diagnosis);
+  const sourceLabel = getDiagnosisSourceLabel(source);
+  const isLive = source === DIAGNOSIS_SOURCE.LIVE;
 
   const audioIsPathology = diagnosis.audio_prediction === 'Vocal Pathology';
+
+  const previewImage = images.find(item => item.id === previewImageId);
+
+  const previewUri = previewImage
+    ? imageUri(previewImage.image_path)
+    : null;
 
   return (
     <ScrollView
@@ -238,6 +302,40 @@ export default function DiagnosisDetailsScreen({
         {formatDate(diagnosis.created_at)}
       </Text>
 
+      <View
+        style={[
+          styles.sourceBadge,
+          {
+            backgroundColor: colors.primaryContainer,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.sourceBadgeText,
+            {
+              color: colors.onPrimaryContainer,
+            },
+          ]}
+        >
+          {sourceLabel}
+        </Text>
+      </View>
+
+      {isLive && (
+        <Text
+          style={[
+            styles.aiNotice,
+            {
+              color: colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          AI-generated live video prediction. Review by a qualified clinician is
+          required.
+        </Text>
+      )}
+
       {/* PATIENT */}
 
       <SectionTitle title="PATIENT" colors={colors} />
@@ -303,112 +401,36 @@ export default function DiagnosisDetailsScreen({
         />
       </View>
 
-      {/* ORIGINAL IMAGE */}
+      {/* IMAGES */}
 
-      {hasImage && (
-        <>
-          <SectionTitle title="ORIGINAL IMAGE" colors={colors} />
+      <SectionTitle
+        title={`IMAGES (${images.length})`}
+        colors={colors}
+      />
 
-          <View
-            style={[
-              styles.imageCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.outlineVariant,
-              },
-            ]}
-          >
-            <Image
-              source={{
-                uri: `file://${diagnosis.image_path}`,
-              }}
-              style={styles.diagnosisImage}
-              resizeMode="contain"
-            />
-          </View>
-        </>
-      )}
-
-      {/* IMAGE ANALYSIS */}
-
-      <SectionTitle title="IMAGE ANALYSIS" colors={colors} />
-
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.outlineVariant,
-          },
-        ]}
-      >
-        {!hasImage ? (
+      {!hasImage ? (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        >
           <NotPerformed colors={colors} />
-        ) : (
-          <>
-            <StatusRow
-              label="Prediction"
-              value={diagnosis.image_prediction || 'Completed'}
-              danger={imageIsCancer}
-              colors={colors}
-            />
-
-            <InfoRow
-              label="Confidence"
-              value={
-                diagnosis.image_confidence != null
-                  ? `${(diagnosis.image_confidence * 100).toFixed(1)}%`
-                  : '—'
-              }
-              colors={colors}
-            />
-
-            <InfoRow
-              label="Cancer probability"
-              value={
-                diagnosis.image_cancer_probability != null
-                  ? `${(diagnosis.image_cancer_probability * 100).toFixed(1)}%`
-                  : '—'
-              }
-              colors={colors}
-            />
-
-            <InfoRow
-              label="Non-cancer probability"
-              value={
-                diagnosis.image_non_cancer_probability != null
-                  ? `${(diagnosis.image_non_cancer_probability * 100).toFixed(
-                      1,
-                    )}%`
-                  : '—'
-              }
-              colors={colors}
-              last
-            />
-
-            <InfoRow
-              label="Doctor Assigned Assessment"
-              value={
-                diagnosis.image_doctor_assessment != null
-                  ? `${diagnosis.image_doctor_assessment}`
-                  : '—'
-              }
-              colors={colors}
-              last
-            />
-            <InfoRow
-              label="Doctor Remarks"
-              value={
-                diagnosis.image_doctor_remarks != null
-                  ? `${diagnosis.image_doctor_remarks}`
-                  : '—'
-              }
-              colors={colors}
-              last
-            />
-          </>
-        )}
-      </View>
+        </View>
+      ) : (
+        images.map((image, index) => (
+          <ImageResultCard
+            key={image.id || `${index}`}
+            image={image}
+            index={index}
+            colors={colors}
+            onOpen={() => setPreviewImageId(image.id)}
+          />
+        ))
+      )}
 
       {/* AUDIO */}
 
@@ -665,8 +687,8 @@ export default function DiagnosisDetailsScreen({
         <InfoRow label="Diagnosis ID" value={diagnosis.id} colors={colors} />
 
         <InfoRow
-          label="Image stored"
-          value={hasImage ? 'Yes' : 'No'}
+          label="Images stored"
+          value={hasImage ? `${images.length}` : 'No'}
           colors={colors}
         />
 
@@ -697,6 +719,30 @@ export default function DiagnosisDetailsScreen({
         For research and screening purposes only. AI results are not a medical
         diagnosis and should be reviewed by a qualified healthcare professional.
       </Text>
+
+      {/* FULL SCREEN IMAGE PREVIEW */}
+
+      {previewUri && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewImageId(null)}
+        >
+          <Pressable
+            style={styles.previewOverlay}
+            onPress={() => setPreviewImageId(null)}
+          >
+            <Image
+              source={{ uri: previewUri }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+
+            <Text style={styles.previewHint}>Tap to close</Text>
+          </Pressable>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
@@ -783,6 +829,151 @@ function StatusRow({ label, value, danger, colors }) {
   );
 }
 
+function ImageResultCard({ image, index, colors, onOpen }) {
+  const isFailed = image.inference_status === 'failed';
+
+  const isCancer = image.image_prediction === 'CANCER';
+
+  const uri = imageUri(image.image_path);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        styles.imageResultCard,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.outlineVariant,
+        },
+      ]}
+    >
+      <View style={styles.imageResultHeader}>
+        <Text
+          style={[styles.imageResultTitle, { color: colors.onSurface }]}
+        >
+          Image {index + 1}
+        </Text>
+
+        <Text
+          style={[styles.imageResultFile, { color: colors.onSurfaceVariant }]}
+          numberOfLines={1}
+        >
+          {imageName(image, index)}
+        </Text>
+      </View>
+
+      {uri ? (
+        <Pressable onPress={onOpen}>
+          <Image
+            source={{ uri }}
+            style={styles.diagnosisImage}
+            resizeMode="contain"
+          />
+
+          <Text
+            style={[styles.imageOpenHint, { color: colors.primary }]}
+          >
+            Tap to view full image
+          </Text>
+        </Pressable>
+      ) : (
+        <Text
+          style={[styles.imageMissing, { color: colors.onSurfaceVariant }]}
+        >
+          Stored image file is unavailable.
+        </Text>
+      )}
+
+      {isFailed ? (
+        <View
+          style={[
+            styles.failureBanner,
+            { backgroundColor: colors.errorContainer },
+          ]}
+        >
+          <Text style={[styles.failureTitle, { color: colors.error }]}>
+            Inference failed
+          </Text>
+
+          <Text
+            style={[styles.failureText, { color: colors.onErrorContainer }]}
+          >
+            {image.error_message || 'No prediction was produced.'}
+          </Text>
+        </View>
+      ) : (
+        <>
+          <StatusRow
+            label="AI prediction"
+            value={image.image_prediction || 'Completed'}
+            danger={isCancer}
+            colors={colors}
+          />
+
+          <InfoRow
+            label="Confidence"
+            value={
+              image.image_confidence != null
+                ? `${(image.image_confidence * 100).toFixed(1)}%`
+                : '—'
+            }
+            colors={colors}
+          />
+
+          <InfoRow
+            label="Cancer probability"
+            value={
+              image.image_cancer_probability != null
+                ? `${(image.image_cancer_probability * 100).toFixed(1)}%`
+                : '—'
+            }
+            colors={colors}
+          />
+
+          <InfoRow
+            label="Non-cancer probability"
+            value={
+              image.image_non_cancer_probability != null
+                ? `${(image.image_non_cancer_probability * 100).toFixed(1)}%`
+                : '—'
+            }
+            colors={colors}
+          />
+
+          {!!image.inference_timestamp && (
+            <InfoRow
+              label="Inference time"
+              value={formatDateTime(image.inference_timestamp)}
+              colors={colors}
+            />
+          )}
+
+          {!!modelLabel(image) && (
+            <InfoRow
+              label="Model"
+              value={modelLabel(image)}
+              colors={colors}
+            />
+          )}
+        </>
+      )}
+
+      <InfoRow
+        label="Doctor assessment"
+        value={image.doctor_assessment}
+        colors={colors}
+      />
+
+      <InfoRow
+        label="Doctor remarks"
+        value={image.doctor_remarks}
+        colors={colors}
+        last
+      />
+    </View>
+  );
+}
+
 function NotPerformed({ colors }) {
   return (
     <Text
@@ -852,6 +1043,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  sourceBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+
+  sourceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+
+  aiNotice: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
   sectionTitle: {
     marginTop: 28,
     marginBottom: 10,
@@ -908,6 +1120,61 @@ const styles = StyleSheet.create({
 
   /* IMAGE */
 
+  imageResultCard: {
+    marginBottom: 14,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+
+  imageResultHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+  },
+
+  imageResultTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  imageResultFile: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 11,
+  },
+
+  imageOpenHint: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  imageMissing: {
+    marginVertical: 14,
+    fontSize: 12,
+  },
+
+  failureBanner: {
+    marginTop: 14,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+  },
+
+  failureTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  failureText: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
   imageCard: {
     borderWidth: 1,
     borderRadius: 18,
@@ -917,8 +1184,28 @@ const styles = StyleSheet.create({
 
   diagnosisImage: {
     width: '100%',
-    height: 300,
+    height: 260,
     borderRadius: 12,
+    backgroundColor: '#00000008',
+  },
+
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+
+  previewImage: {
+    width: '100%',
+    height: '80%',
+  },
+
+  previewHint: {
+    marginTop: 16,
+    color: '#FFFFFF',
+    fontSize: 12,
   },
 
   /* AUDIO */

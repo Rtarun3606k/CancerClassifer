@@ -22,6 +22,7 @@ export async function createDiagnosisReport(diagnosis) {
     image: diagnosis.image,
     audio: diagnosis.audio,
     selectedAnalyses: diagnosis.selectedAnalyses,
+    source: diagnosis.source,
   };
 
   console.log('GENERATING DIAGNOSIS REPORT:', reportData);

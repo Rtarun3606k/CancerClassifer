@@ -154,6 +154,10 @@ jest.mock('../src/screens/DiagnosisDetailsScreen', () => ({
   __esModule: true,
   default: () => null,
 }));
+jest.mock('../src/screens/LiveVideoScreen', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock('../src/screens/AuthScreen', () => ({
   __esModule: true,
   default: () => null,

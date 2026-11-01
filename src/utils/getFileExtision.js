@@ -27,3 +27,23 @@ export function getExtensionFromFile(file, fallback = 'bin') {
 
   return fallback;
 }
+
+/**
+ * Extracts a lower-case extension from a file path / name.
+ * Returns null when no extension is present.
+ */
+export function getExtensionFromPath(path) {
+  if (!path || typeof path !== 'string') {
+    return null;
+  }
+
+  const clean = path.split('?')[0].split('#')[0];
+
+  const match = clean.match(/\.([a-zA-Z0-9]+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return match[1].toLowerCase();
+}

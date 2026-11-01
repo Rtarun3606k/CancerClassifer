@@ -1,6 +1,11 @@
+import { Buffer } from 'buffer';
 import RNFS from 'react-native-fs';
 
 const ROOT = `${RNFS.DocumentDirectoryPath}/OralScan/diagnoses`;
+
+export function getDiagnosisFolderPath(diagnosisId) {
+  return `${ROOT}/${diagnosisId}`;
+}
 
 export async function initializeDiagnosisStorage() {
   const exists = await RNFS.exists(ROOT);
@@ -10,20 +15,40 @@ export async function initializeDiagnosisStorage() {
   }
 }
 
-export async function createDiagnosisFolder(id) {
+export async function ensureDirectory(path) {
+  if (!path) {
+    return;
+  }
+
+  const exists = await RNFS.exists(path);
+
+  if (!exists) {
+    await RNFS.mkdir(path);
+  }
+}
+
+export async function createDiagnosisFolder(id, subfolder = null) {
   await initializeDiagnosisStorage();
 
   const folder = `${ROOT}/${id}`;
 
-  const exists = await RNFS.exists(folder);
+  await ensureDirectory(folder);
 
-  if (!exists) {
-    await RNFS.mkdir(folder);
+  if (subfolder) {
+    await ensureDirectory(`${folder}/${subfolder}`);
+
+    return `${folder}/${subfolder}`;
   }
 
   return folder;
 }
 
+/**
+ * Copies a file into the diagnosis folder.
+ *
+ * `fileName` may contain sub folders (e.g. `images/image-01.jpg`); the parent
+ * directory is created automatically so multiple images can live side by side.
+ */
 export async function copyDiagnosisFile(sourcePath, diagnosisId, fileName) {
   if (!sourcePath) {
     return null;
@@ -39,6 +64,13 @@ export async function copyDiagnosisFile(sourcePath, diagnosisId, fileName) {
 
   const destination = `${folder}/${fileName}`;
 
+  const parentDirectory = destination.substring(
+    0,
+    destination.lastIndexOf('/'),
+  );
+
+  await ensureDirectory(parentDirectory);
+
   const exists = await RNFS.exists(source);
 
   if (!exists) {
@@ -50,7 +82,66 @@ export async function copyDiagnosisFile(sourcePath, diagnosisId, fileName) {
   return destination;
 }
 
+/**
+ * Writes an encoded camera frame into the diagnosis folder.
+ *
+ * The frame is stored inside the existing private diagnosis directory so the
+ * normal History / delete / export flows can manage it like any other image.
+ */
+export async function saveDiagnosisImageBuffer(
+  frameBuffer,
+  diagnosisId,
+  fileName = 'images/live-frame.jpg',
+) {
+  if (!frameBuffer) {
+    throw new Error('A frame is required to save the diagnosis image.');
+  }
 
+  if (!diagnosisId) {
+    throw new Error('Diagnosis ID is missing.');
+  }
+
+  const folder = await createDiagnosisFolder(diagnosisId);
+
+  const destination = `${folder}/${fileName}`;
+
+  const parentDirectory = destination.substring(
+    0,
+    destination.lastIndexOf('/'),
+  );
+
+  await ensureDirectory(parentDirectory);
+
+  await RNFS.writeFile(
+    destination,
+    Buffer.from(frameBuffer).toString('base64'),
+    'base64',
+  );
+
+  return destination;
+}
+
+export async function deleteDiagnosisFile(filePath) {
+  if (!filePath) {
+    return false;
+  }
+
+  let path = filePath;
+
+  if (path.startsWith('file://')) {
+    path = path.replace('file://', '');
+  }
+
+  const exists = await RNFS.exists(path);
+
+  if (!exists) {
+    return false;
+  }
+
+  await RNFS.unlink(path);
+
+  return true;
+}
 
 export async function deleteDiagnosisFolder(diagnosisId) {
   if (!diagnosisId) {

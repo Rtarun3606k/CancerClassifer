@@ -535,7 +535,32 @@ describe('multi-image database persistence', () => {
     expect(sql).toContain('diagnosis_id TEXT NOT NULL');
     expect(sql).toContain('inference_status');
     expect(sql).toContain('doctor_assessment');
-    expect(sql).toContain('PRAGMA user_version = 2');
+    expect(sql).toContain('PRAGMA user_version = 3');
+  });
+
+  test('migrates the version 2 schema in place without dropping diagnoses', async () => {
+    mockSchemaVersion = 2;
+
+    await database.initializeDatabase();
+
+    const statements = mockDbExecute.mock.calls.map(([statement]) => statement);
+
+    expect(statements.some(statement => /DROP TABLE/.test(statement))).toBe(
+      false,
+    );
+    expect(statements).toContain(
+      'ALTER TABLE diagnoses ADD COLUMN source TEXT',
+    );
+    expect(statements).toContain(
+      'ALTER TABLE diagnosis_images ADD COLUMN inference_timestamp TEXT',
+    );
+    expect(statements).toContain(
+      'ALTER TABLE diagnosis_images ADD COLUMN model_name TEXT',
+    );
+    expect(statements).toContain(
+      'ALTER TABLE diagnosis_images ADD COLUMN model_version TEXT',
+    );
+    expect(statements).toContain('PRAGMA user_version = 3');
   });
 
   test('resets the legacy schema when the stored version is older', async () => {
@@ -576,6 +601,76 @@ describe('multi-image database persistence', () => {
 
     expect(statements).toContain('BEGIN TRANSACTION');
     expect(statements).toContain('COMMIT');
+  });
+
+  test('persists the diagnosis source and live inference metadata', async () => {
+    const liveDiagnosis = {
+      id: 'diag-live',
+      createdAt: '2024-05-01T00:00:00.000Z',
+      source: 'live_video',
+      patient: {
+        name: 'Live video session',
+        dateOfBirth: '',
+        age: 0,
+      },
+      selectedAnalyses: { image: true, audio: false },
+      image: {
+        images: [
+          {
+            id: 'img-live',
+            path: '/docs/diag-live/images/live.jpg',
+            fileName: 'live.jpg',
+            result: prediction('NON CANCER', 0.2, 0.8),
+            status: 'completed',
+            inferenceTimestamp: '2024-05-01T10:15:00.000Z',
+            modelName: 'MobileNetV3',
+            modelVersion: '1.0',
+          },
+        ],
+      },
+      audio: {},
+    };
+
+    await expect(database.saveDiagnosis(liveDiagnosis)).resolves.toBe(
+      'diag-live',
+    );
+
+    const diagnosisInsert = mockDbExecute.mock.calls.find(([sql]) =>
+      /INSERT OR REPLACE INTO diagnoses/.test(sql),
+    );
+
+    expect(diagnosisInsert[1]).toContain('live_video');
+    expect(diagnosisInsert[1]).toContain('Live video session');
+
+    const imageInsert = imageInsertCalls()[0][1];
+
+    expect(imageInsert).toContain('2024-05-01T10:15:00.000Z');
+    expect(imageInsert).toContain('MobileNetV3');
+    expect(imageInsert).toContain('1.0');
+  });
+
+  test('derives an audio source for audio-only diagnoses', async () => {
+    await database.saveDiagnosis({
+      id: 'diag-audio',
+      patient: { name: 'Alice', dateOfBirth: '1990-01-01' },
+      selectedAnalyses: { image: false, audio: true },
+      image: { images: [] },
+      audio: {
+        path: '/docs/audio.wav',
+        result: {
+          prediction: 'Normal',
+          confidence: 0.9,
+          pathologyProbability: 0.1,
+          normalProbability: 0.9,
+        },
+      },
+    });
+
+    const diagnosisInsert = mockDbExecute.mock.calls.find(([sql]) =>
+      /INSERT OR REPLACE INTO diagnoses/.test(sql),
+    );
+
+    expect(diagnosisInsert[1]).toContain('audio_analysis');
   });
 
   test('retrieves all images belonging to a diagnosis', async () => {
@@ -904,6 +999,46 @@ describe('multi-image PDF report', () => {
     expect(html).toContain('Alice');
     expect(html).toContain('Dr. Kim');
     expect(html).toContain('Boston');
+  });
+
+  test('renders image-left and prediction/comments-right without image probability bars', async () => {
+    await reportGenerator.generateReport({
+      patient: {
+        name: 'Alice',
+        dateOfBirth: '1990-01-01',
+      },
+      hospitalDetails: { doctorName: 'Dr. Kim', hospitalName: 'Clinic' },
+      selectedAnalyses: { image: true },
+      source: 'live_video',
+      image: {
+        images: [
+          {
+            ...imageEntry(1, 'CANCER'),
+            inferenceTimestamp: '2026-10-31T12:30:05.000Z',
+            modelName: 'MobileNetV3',
+            modelVersion: '1.0',
+          },
+        ],
+      },
+    });
+
+    const html = htmlOfLastCall();
+
+    const imageSection = html.split('IMAGE MODEL INFORMATION')[0];
+
+    expect(imageSection).toContain('Live Video Detection');
+    expect(imageSection).toContain('AI prediction');
+    expect(imageSection).toContain('MobileNetV3');
+    expect(imageSection).toContain('Inference');
+    expect(imageSection).not.toContain('class="bar-row"');
+
+    const layout = imageSection.indexOf('class="image-layout"');
+    const imageColumn = imageSection.indexOf('class="image-column"');
+    const imageDetails = imageSection.indexOf('class="image-details"');
+
+    expect(layout).toBeGreaterThan(-1);
+    expect(imageColumn).toBeGreaterThan(layout);
+    expect(imageDetails).toBeGreaterThan(imageColumn);
   });
 
   test('handles failed images without dropping the rest of the report', async () => {

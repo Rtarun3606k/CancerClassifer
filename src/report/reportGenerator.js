@@ -2,6 +2,16 @@ import { generatePDF } from 'react-native-html-to-pdf';
 import RNFS from 'react-native-fs';
 import { NativeModules } from 'react-native';
 
+import {
+  getDiagnosisImages,
+  imageFileName,
+} from '../utils/diagnosisImages';
+import {
+  DIAGNOSIS_SOURCE,
+  getDiagnosisSourceLabel,
+} from '../utils/diagnosisSource';
+import { getExtensionFromPath } from '../utils/getFileExtision';
+
 const { SharePdf, ReportAssets } = NativeModules;
 
 function formatDate(date) {
@@ -67,7 +77,22 @@ async function imageToBase64(uri) {
 
   const base64 = await RNFS.readFile(path, 'base64');
 
-  return `data:image/jpeg;base64,${base64}`;
+  const extension = getExtensionFromPath(path);
+
+  const mimeTypes = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  };
+
+  const mimeType = mimeTypes[extension] || 'image/jpeg';
+
+  return `data:${mimeType};base64,${base64}`;
 }
 
 async function logoToBase64() {
@@ -76,6 +101,19 @@ async function logoToBase64() {
   }
 
   return await ReportAssets.getLogo();
+}
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function probabilityBar(label, value) {
@@ -103,16 +141,152 @@ function probabilityBar(label, value) {
   `;
 }
 
-function createImageSection(image) {
-  if (!image?.result) {
-    return '';
+function createImageBlock(image, index) {
+  const number = index + 1;
+
+  const result = image?.result;
+
+  const fileName = imageFileName(image, index);
+
+  const preview = image?.base64
+    ? `
+        <div class="image-container">
+          <img
+            class="analysis-image"
+            src="${image.base64}"
+          />
+        </div>
+      `
+    : `
+        <div class="image-missing">
+          Image preview unavailable for this file.
+        </div>
+      `;
+
+  const doctorAssessment = image?.doctorAssessment
+    ? escapeHtml(image.doctorAssessment)
+    : 'Not provided';
+
+  const doctorRemarks = image?.doctorRemarks
+    ? escapeHtml(image.doctorRemarks)
+    : 'No remarks provided';
+
+  const doctorBlock = `
+    <div class="doctor-assessment">
+
+      <div class="doctor-assessment-title">
+        DOCTOR ASSESSMENT
+      </div>
+
+      <div class="patient-row">
+        <span class="label">
+          Assessment
+        </span>
+
+        <span class="value">
+          ${doctorAssessment}
+        </span>
+      </div>
+
+      <div class="remarks">
+
+        <div class="remarks-label">
+          Remarks
+        </div>
+
+        <div class="remarks-value">
+          ${doctorRemarks}
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  const inferenceDate = image?.inferenceTimestamp
+    ? new Date(image.inferenceTimestamp)
+    : null;
+
+  const hasValidInferenceDate =
+    inferenceDate && !Number.isNaN(inferenceDate.getTime());
+
+  const metaRows = [
+    hasValidInferenceDate
+      ? `<div class="image-meta">
+          <span class="label">Inference</span>
+          ${formatDate(inferenceDate)} · ${formatTime(inferenceDate)}
+        </div>`
+      : '',
+    image?.modelName
+      ? `<div class="image-meta">
+          <span class="label">Model</span>
+          ${escapeHtml(
+            [image.modelName, image.modelVersion]
+              .filter(Boolean)
+              .join(' · '),
+          )}
+        </div>`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
+
+  if (!result) {
+    const errorMessage = image?.error
+      ? escapeHtml(image.error)
+      : 'No model result was produced for this image.';
+
+    return `
+      <div class="image-block">
+
+        <div class="image-heading">
+          <span class="image-number">Image ${number}</span>
+          <span class="image-file">${escapeHtml(fileName)}</span>
+        </div>
+
+        <div class="image-layout">
+
+          <div class="image-column">
+            ${preview}
+          </div>
+
+          <div class="image-details">
+
+            <div class="result image-result">
+
+              <div class="prediction-label">
+                AI prediction
+              </div>
+
+              <div class="inference-failed">
+                Inference failed
+              </div>
+
+              <div class="inference-error">
+                ${errorMessage}
+              </div>
+
+              ${metaRows}
+
+            </div>
+
+            ${doctorBlock}
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
   }
 
-  const result = image.result;
+  const cancerProbability = ((result.probabilities?.CANCER ?? 0) * 100).toFixed(
+    1,
+  );
 
-  const cancerProbability = result.probabilities?.CANCER ?? 0;
-
-  const nonCancerProbability = result.probabilities?.['NON CANCER'] ?? 0;
+  const nonCancerProbability = (
+    (result.probabilities?.['NON CANCER'] ?? 0) * 100
+  ).toFixed(1);
 
   const confidence = ((result.probability ?? 0) * 100).toFixed(1);
 
@@ -121,86 +295,82 @@ function createImageSection(image) {
   const predictionColor = isCancer ? '#B3261E' : '#146C2E';
 
   return `
+    <div class="image-block">
+
+      <div class="image-heading">
+        <span class="image-number">Image ${number}</span>
+        <span class="image-file">${escapeHtml(fileName)}</span>
+      </div>
+
+      <div class="image-layout">
+
+        <div class="image-column">
+          ${preview}
+        </div>
+
+        <div class="image-details">
+
+          <div class="result image-result">
+
+            <div class="prediction-label">
+              AI prediction
+            </div>
+
+            <div
+              class="prediction"
+              style="color:${predictionColor}"
+            >
+              ${escapeHtml(result.className ?? 'Unknown')}
+            </div>
+
+            <div class="confidence">
+              Confidence:
+              <strong>
+                ${confidence}%
+              </strong>
+            </div>
+
+            <div class="image-probability-line">
+              <span>Cancer probability</span>
+              <strong>${cancerProbability}%</strong>
+            </div>
+
+            <div class="image-probability-line">
+              <span>Non-cancer probability</span>
+              <strong>${nonCancerProbability}%</strong>
+            </div>
+
+            ${metaRows}
+
+          </div>
+
+          ${doctorBlock}
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+function createImageSection(images) {
+  if (!images?.length) {
+    return '';
+  }
+
+  const blocks = images.map((image, index) => createImageBlock(image, index));
+
+  return `
     <div class="section">
 
       <div class="section-title">
-        IMAGE ANALYSIS
+        IMAGE ANALYSIS (${images.length} ${
+    images.length === 1 ? 'IMAGE' : 'IMAGES'
+  })
       </div>
 
-      ${
-        image.base64
-          ? `
-            <div class="image-container">
-              <img
-                class="analysis-image"
-                src="${image.base64}"
-              />
-            </div>
-          `
-          : ''
-      }
-
-      <div class="result">
-
-        <div class="prediction-label">
-          Prediction
-        </div>
-
-        <div
-          class="prediction"
-          style="color:${predictionColor}"
-        >
-          ${result.className ?? 'Unknown'}
-        </div>
-
-        <div class="confidence">
-          Confidence:
-          <strong>
-            ${confidence}%
-          </strong>
-        </div>
-
-        ${probabilityBar('CANCER', cancerProbability)}
-
-        ${probabilityBar('NON CANCER', nonCancerProbability)}
-
-${
-  image.doctorAssessment || image.doctorRemarks
-    ? `
-      <div class="doctor-assessment">
-
-        <div class="doctor-assessment-title">
-          DOCTOR ASSESSMENT
-        </div>
-
-        <div class="patient-row">
-          <span class="label">
-            Assessment
-          </span>
-
-          <span class="value">
-            ${image.doctorAssessment || 'Not provided'}
-          </span>
-        </div>
-
-        <div class="remarks">
-
-          <div class="remarks-label">
-            Remarks
-          </div>
-
-          <div class="remarks-value">
-            ${image.doctorRemarks || 'No remarks provided'}
-          </div>
-
-        </div>
-
-      </div>
-    `
-    : ''
-}
-
-      </div>
+      ${blocks.join('')}
 
     </div>
 
@@ -238,7 +408,7 @@ ${
           </td>
 
           <td>
-            On-device
+            On-device, one image at a time
           </td>
         </tr>
 
@@ -248,7 +418,7 @@ ${
           </td>
 
           <td>
-            Oral image
+            Oral images
           </td>
         </tr>
 
@@ -408,12 +578,17 @@ export async function generateReport({
   image,
   audio,
   selectedAnalyses,
+  source,
 }) {
   if (!patient) {
     throw new Error('Patient information is missing.');
   }
 
-  const hasImage = !!selectedAnalyses?.image && !!image?.result;
+  const imageEntries = selectedAnalyses?.image
+    ? getDiagnosisImages(image)
+    : [];
+
+  const hasImage = imageEntries.length > 0;
 
   const hasAudio = !!selectedAnalyses?.audio && !!audio?.result;
 
@@ -425,21 +600,35 @@ export async function generateReport({
 
   const age = calculateAge(patient.dateOfBirth);
 
-  // Prepare image only when required.
-  let imageBase64 = null;
+  // Prepare every image preview independently. A file that cannot be read
+  // must not invalidate the whole report.
+  const imagesWithPreview = await Promise.all(
+    imageEntries.map(async entry => {
+      const source = entry.path || entry.uri;
 
-  if (hasImage && image?.uri) {
-    imageBase64 = await imageToBase64(image.uri);
-  }
+      if (!source) {
+        return { ...entry, base64: null };
+      }
+
+      try {
+        const base64 = await imageToBase64(source);
+
+        return { ...entry, base64 };
+      } catch (error) {
+        console.warn(
+          'REPORT IMAGE PREVIEW UNAVAILABLE:',
+          source,
+          error?.message,
+        );
+
+        return { ...entry, base64: null };
+      }
+    }),
+  );
 
   const logoBase64 = await logoToBase64();
 
-  const imageSection = hasImage
-    ? createImageSection({
-        ...image,
-        base64: imageBase64,
-      })
-    : '';
+  const imageSection = hasImage ? createImageSection(imagesWithPreview) : '';
 
   const audioSection = hasAudio ? createAudioSection(audio) : '';
 
@@ -635,6 +824,87 @@ body {
 
 /* IMAGE */
 
+.image-block {
+  margin-top: 22px;
+  page-break-inside: avoid;
+}
+
+.image-block:first-child {
+  margin-top: 0;
+}
+
+.image-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.image-column {
+  flex: 0 0 42%;
+  max-width: 42%;
+}
+
+.image-details {
+  flex: 1 1 58%;
+  min-width: 0;
+}
+
+.image-details .result {
+  margin-top: 0;
+  padding: 16px;
+}
+
+.image-details .doctor-assessment {
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.image-probability-line {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.image-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.image-meta .label {
+  display: inline-block;
+  width: 70px;
+}
+
+.image-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.image-number {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.image-file {
+  font-size: 11px;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.image-missing {
+  padding: 18px;
+  border: 1px dashed #d0d0d0;
+  border-radius: 12px;
+  background: #fafafa;
+  color: #6b7280;
+  font-size: 12px;
+  text-align: center;
+}
+
 .image-container {
   width: 100%;
   height: 260px;
@@ -649,6 +919,19 @@ body {
   width: 100%;
   height: 260px;
   object-fit: contain;
+}
+
+.inference-failed {
+  margin-top: 5px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #B3261E;
+}
+
+.inference-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
 }
 
 /* RESULT */
@@ -726,6 +1009,7 @@ body {
   padding: 16px;
   background: #f9dedd;
   border-radius: 12px;
+  page-break-inside: avoid;
 }
 
 .notice-title {
@@ -919,12 +1203,38 @@ body {
         .join(' + ')}
     </div>
 
+    ${
+      hasImage
+        ? `
+    <div class="meta-row">
+      <span class="meta-label">
+        Images analyzed:
+      </span>
+      ${imagesWithPreview.length}
+    </div>
+    `
+        : ''
+    }
+
     <div class="meta-row">
       <span class="meta-label">
         Inference:
       </span>
       On-device
     </div>
+
+    ${
+      source === DIAGNOSIS_SOURCE.LIVE
+        ? `
+    <div class="meta-row">
+      <span class="meta-label">
+        Source:
+      </span>
+      ${getDiagnosisSourceLabel(source)}
+    </div>
+    `
+        : ''
+    }
 
   </div>
 

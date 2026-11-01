@@ -29,7 +29,7 @@ const slides = [
   {
     type: 'ready',
     title: "You're ready",
-    text: 'Select an oral image from your gallery and let OralScan analyze it directly on your device.',
+    text: 'Select one or more oral images from your gallery and let OralScan analyze each of them directly on your device.',
     button: 'Get Started',
   },
 ];

@@ -1,5 +1,31 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+# Development quick start
+
+Start Metro, build the Android app, install it on the connected device, and
+launch it with one command:
+
+```sh
+npm run dev
+# or
+./scripts/dev.sh
+```
+
+The script reuses an already-running Metro server. If it starts Metro itself,
+it stops that Metro process again when the script exits.
+
+## Live Video Detection (experimental)
+
+Home → **Live Video Detection** opens a rear-camera preview for testing the
+device camera integration. It does not run the ONNX model, record video, or
+write to diagnosis records. The camera is only opened after the user taps
+**Start Camera**, and it is released when the preview is stopped, the screen is
+left, or the app goes to the background.
+
+Camera access uses `react-native-vision-camera`'s permission hook (the library's
+recommended Android permission API). Permanently denied access shows an
+**Open Settings** action.
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.

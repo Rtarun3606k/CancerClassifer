@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,11 @@ import { getAllDiagnoses, deleteDiagnosis } from '../services/database';
 import { Alert } from 'react-native';
 import { deleteDiagnosisFolder } from '../services/diagnosisStorage';
 import { exportAllData } from '../services/exportService';
+import {
+  diagnosisSourceFromRow,
+  DIAGNOSIS_SOURCE,
+  getDiagnosisSourceLabel,
+} from '../utils/diagnosisSource';
 
 export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
   const [diagnoses, setDiagnoses] = useState([]);
@@ -48,6 +54,11 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
   }, []);
 
   const reportsCount = diagnoses.filter(item => item.report_path).length;
+
+  const imageCount = diagnoses.reduce(
+    (total, item) => total + Number(item.image_count ?? 0),
+    0,
+  );
 
   const handleDeleteDiagnosis = async diagnosis => {
     try {
@@ -294,6 +305,8 @@ export default function HistoryScreen({ colors, onBack, onSelectDiagnosis }) {
           />
 
           <StatCard value={reportsCount} label="Reports" colors={colors} />
+
+          <StatCard value={imageCount} label="Images" colors={colors} />
         </View>
 
         <TextInput
@@ -409,9 +422,50 @@ function StatCard({ value, label, colors }) {
   );
 }
 
+function formatConfidence(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return '—';
+  }
+
+  return `${(number * 100).toFixed(1)}%`;
+}
+
+function thumbnailUri(path) {
+  if (!path) {
+    return null;
+  }
+
+  return path.startsWith('file://') ? path : `file://${path}`;
+}
+
 function DiagnosisCard({ diagnosis, colors, formatDate, onPress, onDelete }) {
   const hasImage = diagnosis.image_selected === 1;
   const hasAudio = diagnosis.audio_selected === 1;
+
+  const source = diagnosisSourceFromRow(diagnosis);
+  const sourceLabel = getDiagnosisSourceLabel(source);
+  const isLive = source === DIAGNOSIS_SOURCE.LIVE;
+
+  const thumbnail = isLive
+    ? thumbnailUri(diagnosis.thumbnail_path)
+    : null;
+
+  const imageCount = Number(diagnosis.image_count ?? 0);
+
+  const cancerImageCount = Number(diagnosis.image_cancer_count ?? 0);
+
+  const livePrediction =
+    diagnosis.primary_image_prediction === 'CANCER'
+      ? 'Cancer'
+      : diagnosis.primary_image_prediction
+      ? 'Non-cancer'
+      : '—';
+
+  const liveConfidence = formatConfidence(
+    diagnosis.primary_image_confidence,
+  );
 
   return (
     <View
@@ -431,7 +485,35 @@ function DiagnosisCard({ diagnosis, colors, formatDate, onPress, onDelete }) {
         })}
       >
         <View style={styles.cardHeader}>
+          {thumbnail && (
+            <Image
+              accessibilityLabel="Live detection thumbnail"
+              source={{ uri: thumbnail }}
+              style={styles.thumbnail}
+            />
+          )}
+
           <View style={{ flex: 1 }}>
+            <View
+              style={[
+                styles.sourceBadge,
+                {
+                  backgroundColor: colors.primaryContainer,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sourceBadgeText,
+                  {
+                    color: colors.onPrimaryContainer,
+                  },
+                ]}
+              >
+                {sourceLabel}
+              </Text>
+            </View>
+
             <Text
               style={[
                 styles.patientName,
@@ -480,11 +562,26 @@ function DiagnosisCard({ diagnosis, colors, formatDate, onPress, onDelete }) {
 
         {/* Analysis results */}
         <View style={styles.results}>
-          {hasImage && (
+          {hasImage && !isLive && (
             <Result
-              label="IMAGE"
-              value={diagnosis.image_prediction || 'Completed'}
-              danger={diagnosis.image_prediction === 'CANCER'}
+              label="IMAGES"
+              value={
+                imageCount === 0
+                  ? 'None stored'
+                  : `${imageCount} ${
+                      imageCount === 1 ? 'image' : 'images'
+                    }${cancerImageCount ? ` · ${cancerImageCount} cancer` : ''}`
+              }
+              danger={cancerImageCount > 0}
+              colors={colors}
+            />
+          )}
+
+          {isLive && (
+            <Result
+              label="LIVE PREDICTION"
+              value={`${livePrediction} · ${liveConfidence}`}
+              danger={diagnosis.primary_image_prediction === 'CANCER'}
               colors={colors}
             />
           )}
@@ -678,6 +775,29 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+
+  thumbnail: {
+    width: 58,
+    height: 58,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: '#00000012',
+  },
+
+  sourceBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  sourceBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
 
   patientName: {
